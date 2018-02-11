@@ -1,7 +1,7 @@
-# medline
+# medline.py
 medline mining system
 
-### INSTALL ###
+# INSTALL #
 ## Python ##
 - Python 3.6 or greater
 - pyperclip
