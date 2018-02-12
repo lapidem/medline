@@ -1,0 +1,16 @@
+#!/bin/sh
+
+# Set these paths appropriately
+
+BIN=/Users/sirasawa/Linux/tt/bin
+CMD=/Users/sirasawa/Linux/tt/cmd
+LIB=/Users/sirasawa/Linux/tt/lib
+
+OPTIONS="-token -lemma -sgml"
+
+TAGGER=${BIN}/tree-tagger
+TOKENIZER=${CMD}/utf8-tokenize.perl
+PARFILE=${LIB}/slovak-utf8.par
+
+$TOKENIZER $* |
+$TAGGER $OPTIONS $PARFILE
