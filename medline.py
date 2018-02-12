@@ -20,7 +20,9 @@ color enhancement, optional limit
 4.19 medlineでAB tagが存在しないレコードがあり、バグフィックス 
 4.20 associated kywordsに正規表現文字が入るとhungするbugfix
 4.21 flag(), toggle(), copy2Clipboard(), dispConBuf(), dispController()
-4.22 dispController() enriched
+4.22 dispController() enriched 
+4.23 bug fix, abstractsからの改行を取り除く正規表現変更：行末が丁度\nの場合を考慮
+    kwic表示変更時のdeltaがdispControllerで一部反映されていなかった。
 To Do 
 
 *********** neural network of words の構造
@@ -46,7 +48,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev4.22'
+revision = 'rev4.23'
 
 import glob
 import os
@@ -60,12 +62,7 @@ import pyperclip
 # now incorporate trained data list instead of using TT in the code
 # trained by tteverb.awk
 
-tagPattern = r'([A-Z]+)\s*\-s*'
-contPattern = r'\s+([^\s].*$)'
-titleTagPattern = r'^TI\s*\-s*'
-oTagPattern = r'^OT\s+\-\s*([\w ]+)\n*'
-regExChar = ['+', '*', '(', ')', '{', '}', '[', ']', '?', '<', '>']
-
+pubmedDir ='/pubmed/'     #home dirからの相対path, ~/pubmed/を想定
 ####  global
 files = []
 pubmed = {}
@@ -88,6 +85,13 @@ adjective = {}
 adverbRank = {}
 verbRawRank = {}
 adjectiveRank = {}
+
+#### constants
+tagPattern = r'([A-Z]+)\s*\-s*'
+contPattern = r'\s+([^\s].*$)'
+titleTagPattern = r'^TI\s*\-s*'
+oTagPattern = r'^OT\s+\-\s*([\w ]+)\n*'
+regExChar = ['+', '*', '(', ')', '{', '}', '[', ']', '?', '<', '>']
 
 def openMedline():
     #get medline txt files
@@ -118,7 +122,8 @@ def openMedline():
     pubmed = {}
 
     homeDir = os.environ['HOME']
-    medlineTxt = homeDir+'/py/pubmed/*.txt'
+    medlineTxt = homeDir+pubmedDir+'*.txt'
+    print(medlineTxt)
     files =glob.glob(medlineTxt)
 
     #open medline txt files
@@ -184,7 +189,8 @@ def openMedline():
     for i in range(len(abstracts)):
         if abstracts[i] == '':    # AB無しレコード対策
             continue
-        abstracts[i] = re.sub(r'\n\s+', ' ', abstracts[i])
+#        abstracts[i] = re.sub(r'\n\s+', ' ', abstracts[i])    #rev4.22 
+        abstracts[i] = re.sub(r'\n\s*', ' ', abstracts[i])
         lines = abstracts[i].split('. ')
         #'.'でsplitした時に、abstractの最後が'.\n'であるため、linesの最後の要素は空行となる
         for lineN in range(len(lines)-1):
@@ -908,10 +914,12 @@ def dispController():
         message = "/{:,d})".format(found) + message
         prompt = input(enhance(message))
         if prompt == '':
-            start += limit * poisson
+#            start += limit * poisson
+            start += delta
             start = min(start, len(conBuf))
         elif prompt == 'b':
-            start -= limit * poisson
+#            start -= limit * poisson
+            start -= delta
             start = max(0, start)
         elif prompt == 'a':
             start = 0
