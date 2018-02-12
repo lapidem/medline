@@ -2,9 +2,9 @@
 
 # Set these paths appropriately
 
-BIN=/Users/sirasawa/Linux/tt/bin
-CMD=/Users/sirasawa/Linux/tt/cmd
-LIB=/Users/sirasawa/Linux/tt/lib
+BIN=./tt/bin
+CMD=./tt/cmd
+LIB=./tt/lib
 
 OPTIONS="-token -lemma -sgml"
 
