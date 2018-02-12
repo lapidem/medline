@@ -795,7 +795,9 @@ def kwic(line, keyword):
         if index < 0:
             index = line.find(keyword.lower())
             if index <0:
-                return line[:nLLen]
+                index = line.find(keyword.upper())
+                if index <0:
+                    return line[:nLLen]
     leftStr = line[:index]
     rightStr = line[index:]
     leftSpace = nLLen - index
@@ -820,7 +822,9 @@ def rightStr(line, keyword):
 def enhanceKwd(line, kwd):
     line = line.replace(kwd, enhance(kwd))     
     KWD = kwd.capitalize()
-    line = line.replace(KWD, enhance(KWD))   
+    line = line.replace(KWD, enhance(KWD)) 
+    KWD = kwd.upper()
+    line = line.replace(KWD, enhance(KWD)) 
     return line
 
 def dispConBuf(start, end, keyw):
