@@ -231,7 +231,7 @@ def loadTtdic():
     # open TreeTag data
     print("loading Trained Tree Tag  dictionary...")
     homeDir = os.environ['HOME']
-    TTdic = homeDir + '/py/pubmed/medlineTTE.lst'
+    TTdic = homeDir +pubmedDir+'medlineTTE.lst'
     f = open(TTdic)
     ttdic = f.readlines()
     f.close()
