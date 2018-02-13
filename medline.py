@@ -23,6 +23,8 @@ color enhancement, optional limit
 4.22 dispController() enriched 
 4.23 bug fix, abstractsからの改行を取り除く正規表現変更：行末が丁度\nの場合を考慮
     kwic表示変更時のdeltaがdispControllerで一部反映されていなかった。
+    keyword.upper()対応
+5.0 kwic； keyword一語前でソート
 To Do 
 
 *********** neural network of words の構造
@@ -48,7 +50,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev4.23'
+revision = 'rev5.0'
 
 import glob
 import os
@@ -73,6 +75,7 @@ history = []
 aWordArray = []
 conBuf = [] #console buffer
 conBufSort = [] 
+conBufLSort = [] #sorted console buffer by left side of keyword
 ## ttdic structure
 ## word \t POS \t infinitive \ count
 ## trained by tteraw.awk in pubmed folder from medline.txt data as stdin
@@ -229,12 +232,15 @@ def loadTtdic():
     global ttdic
 
     # open TreeTag data
-    print("loading Trained Tree Tag  dictionary...")
+
     homeDir = os.environ['HOME']
     TTdic = homeDir +pubmedDir+'medlineTTE.lst'
+    print(TTdic)
+    print("loading Trained Tree Tag  dictionary...", end='')
     f = open(TTdic)
     ttdic = f.readlines()
     f.close()
+    print("{:,d} records".format(len(ttdic)))
 
     ttVerb()
     ttAdverb()
@@ -788,7 +794,7 @@ def searchMatch(keyword, docArray, matchArray, voca={}):
         |                      nLLen         |
                             |    | nLLen      |
 """
-def kwic(line, keyword):
+def findCUL(line, keyword):
     index = line.find(keyword)
     if index <0:
         index = line.find(keyword.capitalize())
@@ -796,8 +802,22 @@ def kwic(line, keyword):
             index = line.find(keyword.lower())
             if index <0:
                 index = line.find(keyword.upper())
-                if index <0:
-                    return line[:nLLen]
+    return index
+
+def kwic(line, keyword):
+    index = findCUL(line, keyword)
+    if index < 0:
+        return line[:nLLen]    #範囲を超えてもエラーにならない
+#        return line[:min(nLLen, len(line))]
+#    index = line.find(keyword)
+#    if index <0:
+#        index = line.find(keyword.capitalize())
+#        if index < 0:
+#            index = line.find(keyword.lower())
+#            if index <0:
+#                index = line.find(keyword.upper())
+#                if index <0:
+#                    return line[:nLLen]
     leftStr = line[:index]
     rightStr = line[index:]
     leftSpace = nLLen - index
@@ -809,15 +829,27 @@ def kwic(line, keyword):
         leftStr = leftStr[pos:]
     if rightSpace > 0:
         rightStr = rightStr[:nLLen]
+#    print(leftStrRev(line,keyword))   #debug
     return leftStr + rightStr
 
 def rightStr(line, keyword):
-    index = line.find(keyword)
+    index = findCUL(line, keyword)
+#    index = line.find(keyword)
+#    if index <0:
+#        index = line.find(keyword.capitalize())
+#        if index <0:
+#            return line
     if index <0:
-        index = line.find(keyword.capitalize())
-        if index <0:
-            return line
-    return line[index:]
+        return line
+    else:
+        return line[index:]
+
+def leftStrRev(line, keyword):
+    index = findCUL(line, keyword)
+    if index <0:
+        lineStr = line[:nLLen]
+    leftStr = line[:index]
+    return leftStr[::-1]
 
 def enhanceKwd(line, kwd):
     line = line.replace(kwd, enhance(kwd))     
@@ -838,7 +870,7 @@ def dispConBuf(start, end, keyw):
         if isSort:
             line = conBufSort[i]
         else:
-            line = conBuf[i]
+            line = conBufLSort[i]
         if isKWIC:
             line = kwic(line, keyw ) 
         line = enhanceKwd(line, keyw)
@@ -852,6 +884,8 @@ def flag(flagName):
     if flagName == 'sort':
         if isSort:
             return 'sort'
+        else:
+            return 'Lsort'
     return ''
 
 def toggle(flag):
@@ -891,7 +925,8 @@ def copyAll2Clipboard(buf, kwd):
 def promptHelp():
     print (''''a':jump to the start point     'b':back to previous list
 'e':jump to the end             'CR':return for next list
-'s':toggle sort mode           '.k':toggle KWIC mode
+'s':toggle sort mode(sort: by right side, Lsort: by left side)
+'.k':toggle KWIC mode
 'C':copy all lists to clipboard  'h':invoke this page
 ']number':copy numbered list to clipboard
 any other key to quit''')
@@ -901,6 +936,7 @@ def dispController():
     global isSort
     global conBuf
     global conBufSort
+    global conBufLSort
 
     start = 0
     isSkip = False
@@ -976,6 +1012,7 @@ poisson = 2
 tooLong = 500
 isKWIC = True
 isSort = True
+isLSort = False
 nLLen = 36
 res='' #bug?
 
@@ -1177,14 +1214,22 @@ while True:
             delta = limit*poisson
         conBuf = []
         conBufSort = []
+        conBufLSort = []
 
         #### console Buffer routine new
         sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
+        sortedLMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
+        sortedMM = sorted(sortedLMM, key=lambda str: rightStr(str, keywordArray[0]))
+#        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
+#        sortedLMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
+#        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
         for i in range(len(multiMatch[multiplicity])):
             line = multiMatch[multiplicity][i]
             lineSort = sortedMM[i]
+            lineLSort = sortedLMM[i]
             conBuf.append(line)
             conBufSort.append(lineSort)
+            conBufLSort.append(lineLSort)
         dispController()
 
     #####  Associated words list
