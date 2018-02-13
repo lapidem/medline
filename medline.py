@@ -194,6 +194,7 @@ def openMedline():
             continue
 #        abstracts[i] = re.sub(r'\n\s+', ' ', abstracts[i])    #rev4.22 
         abstracts[i] = re.sub(r'\n\s*', ' ', abstracts[i])
+        abstracts[i] = re.sub(r'\s+', ' ', abstracts[i]) # rev5.0
         lines = abstracts[i].split('. ')
         #'.'でsplitした時に、abstractの最後が'.\n'であるため、linesの最後の要素は空行となる
         for lineN in range(len(lines)-1):
@@ -842,14 +843,20 @@ def rightStr(line, keyword):
     if index <0:
         return line
     else:
-        return line[index:]
+        rightStr = line[index:]
+        lineReplaced = re.sub('\W', '', rightStr)
+#        print(lineReplaced)    #debug
+        return lineReplaced
+#        return line[index:]
 
 def leftStrRev(line, keyword):
     index = findCUL(line, keyword)
     if index <0:
         lineStr = line[:nLLen]
     leftStr = line[:index]
-    return leftStr[::-1]
+    leftStrReplaced = re.sub('\W', '', leftStr)
+#    print (leftStrReplaced[::-1])    #debug
+    return leftStrReplaced[::-1]
 
 def enhanceKwd(line, kwd):
     line = line.replace(kwd, enhance(kwd))     
@@ -1219,7 +1226,8 @@ while True:
         #### console Buffer routine new
         sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
         sortedLMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
-        sortedMM = sorted(sortedLMM, key=lambda str: rightStr(str, keywordArray[0]))
+#        sortedMM = []
+#        sortedMM = sorted(sortedLMM, key=lambda str: rightStr(str, keywordArray[0]))
 #        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
 #        sortedLMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
 #        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
