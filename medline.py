@@ -24,7 +24,7 @@ color enhancement, optional limit
 4.23 bug fix, abstractsからの改行を取り除く正規表現変更：行末が丁度\nの場合を考慮
     kwic表示変更時のdeltaがdispControllerで一部反映されていなかった。
     keyword.upper()対応
-5.0 kwic； keyword一語前でソート
+5.0 kwic； keyword一語前でソート 5.1 neighboring word frequency sort (NWFS)
 To Do 
 
 *********** neural network of words の構造
@@ -50,7 +50,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev5.0'
+revision = 'rev5.1'
 
 import glob
 import os
@@ -260,29 +260,11 @@ def ttVerb():
  #   verb = {}
     if len(ttdic) >0:
         print("making trained verb dictionary...")
-#        for i in range(len(ttdic)):
-#            tagArray = ttdic[i].split()
-#            if len(tagArray) > 3:    #countが存在しないレコードを捨てる
-#                if tagArray[1][0] == 'V':
-#                #verb 原形(infinitive)
-#                    if tagArray[2] in verb.keys():
-#                        verb[tagArray[2]] += int(tagArray[3])
-#                    else:
-#                        verb[tagArray[2]] = int(tagArray[3])
-#                #verbRaw 単語そのもの
-#                    if tagArray[0] in verbRaw.keys():
-#                        verbRaw[tagArray[0]] = int(tagArray[3])
-#                    else:
-#                        verbRaw[tagArray[0]] = int(tagArray[3])
         verb = {}
         verb = getPOS(verb, 'V', 2)
         verbRaw = {}
         verbRaw = getPOS(verbRaw, 'V', 0)
         verbRawRank = getRank(verbRaw)
-#        count = 0
-#        for k,v in sorted(verbRaw.items(), key=lambda x:-x [1]):
-#            count += 1
-#            verbRawRank[k] = count
     else:
         print("ttdic is not loaded.")
 
@@ -681,6 +663,7 @@ def getAdjective():
     return dispDicRank(adjective)
    
 def dispVocaDistr(vocaDistr):
+    #### db全体の出現率に比べて何倍の出現率か？ <poissonまで
     #### 　有意に頻度の高い単語を表示(vocaDistrの降順表示：poissonまで）
     #### constants: poisson
     #### globals: aWordArray
@@ -764,7 +747,6 @@ def searchMatch(keyword, docArray, matchArray, voca={}):
             continue
         m = re.search(keyword.lower(), docArray[i].lower())
         if m:
-#            print(i,keyword,docArray[i]) #debug
             matchArray.append(docArray[i]) 
             nFound += 1   
             #### 全データベース中でマッチした文のbuild vocabulary
@@ -805,20 +787,61 @@ def findCUL(line, keyword):
                 index = line.find(keyword.upper())
     return index
 
+'''
+keywordの次の語の多い順にsortする。
+    keywordの次の語の頻度辞書を作成する。　makePPDic(line, keyword)
+        lineを配列にする（split)                  strArray = line.split() 
+        keywordの位置を見つける              index = findStr(line, keyword)
+        keywordの位置+-1の単語を見つける    preKey = strArray[index -1], postKey = strArray[index+1
+            keywordが最初もしくは最後の場合には、空文字を作成しカウントしない
+        postKeyDic{word: count}, preKeyDic{}を作成する　（これはkeywordが同じである限り同じ） local変数
+    そのline中のkeywordの次(前）の語の頻度を返すkey関数を与える getKeyCount(line, keyword, postKeyDic | preKeyDic)
+'''
+def register2Dic(word, dic):
+    if word in dic:
+        dic[word] += 1
+    else:
+        dic[word] = 1
+
+def makePPDic( line, keyword, preDic, postDic):
+    strArray = line.split()
+#    print(strArray)    #debug
+    index = findStr(keyword, strArray)
+    if index in range(0, len(strArray)-1):
+#        print(keyword, strArray[index+1])    #debug
+        register2Dic(strArray[index+1], postDic)
+    if index in range(1,len(strArray)):
+        register2Dic(strArray[index-1], preDic)
+
+def getKeyCount(line, keyword, dic, offset):
+#    print(dic)    #debug
+    strArray = line.split()
+    index = findStr(keyword, strArray)
+    if index+offset in range(len(strArray)):
+        adKeyword = strArray[index+offset]
+        if adKeyword in dic.keys():
+            return int(dic[adKeyword])
+        else:
+            return 0
+    else:
+        return 0
+
+def findStr( string, strArray):
+    for i in range(len(strArray)):
+        if string in strArray[i]:
+            return i
+            if string.capitalize() in strArray[i]:
+                return i
+                if string.lower() in strArray[i]:
+                        return i
+                        if string.upper() in strArray[i]:
+                            return i
+    return -1
+
 def kwic(line, keyword):
     index = findCUL(line, keyword)
     if index < 0:
         return line[:nLLen]    #範囲を超えてもエラーにならない
-#        return line[:min(nLLen, len(line))]
-#    index = line.find(keyword)
-#    if index <0:
-#        index = line.find(keyword.capitalize())
-#        if index < 0:
-#            index = line.find(keyword.lower())
-#            if index <0:
-#                index = line.find(keyword.upper())
-#                if index <0:
-#                    return line[:nLLen]
     leftStr = line[:index]
     rightStr = line[index:]
     leftSpace = nLLen - index
@@ -835,19 +858,12 @@ def kwic(line, keyword):
 
 def rightStr(line, keyword):
     index = findCUL(line, keyword)
-#    index = line.find(keyword)
-#    if index <0:
-#        index = line.find(keyword.capitalize())
-#        if index <0:
-#            return line
     if index <0:
         return line
     else:
         rightStr = line[index:]
         lineReplaced = re.sub('\W', '', rightStr)
-#        print(lineReplaced)    #debug
         return lineReplaced
-#        return line[index:]
 
 def leftStrRev(line, keyword):
     index = findCUL(line, keyword)
@@ -855,7 +871,6 @@ def leftStrRev(line, keyword):
         lineStr = line[:nLLen]
     leftStr = line[:index]
     leftStrReplaced = re.sub('\W', '', leftStr)
-#    print (leftStrReplaced[::-1])    #debug
     return leftStrReplaced[::-1]
 
 def enhanceKwd(line, kwd):
@@ -870,9 +885,9 @@ def dispConBuf(start, end, keyw):
 #    print(start,end,keyw, len(conBuf))
     if start <0:
         start = 0
-    if end > len(conBuf):
+    if end > len(conBufSort):
 #        end = len(conBuf) -1
-        end = len(conBuf) 
+        end = len(conBufSort) 
     for i in range(start, end):
         if isSort:
             line = conBufSort[i]
@@ -958,24 +973,25 @@ def dispController():
             isSkip = toggle(isSkip)
 #        message = "<<-a<-b:CR->e->>, 's':sort tgl, any other:quit "+flag('sort')+flag('KWIC')+">>>"
         message = "<<-a<-b:CR->e->>, typ h for help "+flag('sort')+flag('KWIC')+">>>"
-        message = "/{:,d})".format(found) + message
+        message = "/{:,d}{}".format(found, getWordRank(keywordArray[0])) + message
         prompt = input(enhance(message))
         if prompt == '':
-#            start += limit * poisson
             start += delta
-            start = min(start, len(conBuf))
+            start = min(start, len(conBufSort))
         elif prompt == 'b':
-#            start -= limit * poisson
             start -= delta
             start = max(0, start)
         elif prompt == 'a':
             start = 0
         elif prompt == 'e':
-            start = len(conBuf) - limit * poisson
+            start = len(conBufSort) - limit * poisson
         elif prompt.isdigit():
-            start = min(len(conBuf)+1, int(prompt)-1)
+            start = min(len(conBufSort)+1, int(prompt)-1)
         elif prompt == 'C':
-            copyAll2Clipboard(conBufSort, keywordArray[0])
+            if isSort:
+                copyAll2Clipboard(conBufSort, keywordArray[0])
+            else:
+                copyAll2Clipboard(conBufLSort, keywordArray[0])
             isSkip = True
         elif prompt == '.k':
             isKWIC  = toggle(isKWIC)
@@ -1222,20 +1238,28 @@ while True:
         conBuf = []
         conBufSort = []
         conBufLSort = []
+        preKeyDic ={}
+        postKeyDic = {}
+        tempMM = []
 
-        #### console Buffer routine new
-        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
-        sortedLMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
-#        sortedMM = []
-#        sortedMM = sorted(sortedLMM, key=lambda str: rightStr(str, keywordArray[0]))
-#        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
-#        sortedLMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
-#        sortedMM = sorted(multiMatch[multiplicity], key=lambda str: leftStrRev(str, keywordArray[0]))
         for i in range(len(multiMatch[multiplicity])):
-            line = multiMatch[multiplicity][i]
+            makePPDic(multiMatch[multiplicity][i], keywordArray[0], preKeyDic, postKeyDic)
+#        print(preKeyDic)    #debug
+        #### console Buffer routine new
+        tempMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
+#        for i in range(len(tempMM)):    #debug
+#            print(getKeyCount(tempMM[i], keywordArray[0], postKeyDic, 1), end='')    #debug
+        sortedMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], postKeyDic, 1))
+        tempMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
+        sortedLMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], preKeyDic, -1))
+        for i in range(len(multiMatch[multiplicity])):
+#            line = multiMatch[multiplicity][i]
             lineSort = sortedMM[i]
+#            strArray = lineSort.split()   #debug
+#            target = strArray[findStr(keywordArray[0], lineSort)]
+#            lineSort = lineSort + target
             lineLSort = sortedLMM[i]
-            conBuf.append(line)
+#            conBuf.append(line)
             conBufSort.append(lineSort)
             conBufLSort.append(lineLSort)
         dispController()
