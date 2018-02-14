@@ -25,6 +25,7 @@ color enhancement, optional limit
     kwic表示変更時のdeltaがdispControllerで一部反映されていなかった。
     keyword.upper()対応
 5.0 kwic； keyword一語前でソート 5.1 neighboring word frequency sort (NWFS)
+5.2 multiple sort console buffer control enhancement, jumping
 To Do 
 
 *********** neural network of words の構造
@@ -50,7 +51,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev5.1'
+revision = 'rev5.2'
 
 import glob
 import os
@@ -945,10 +946,11 @@ def copyAll2Clipboard(buf, kwd):
     print("{:,d} kwic expressions have been copied to clipboard ...".format(nTitle))
 
 def promptHelp():
-    print (''''a':jump to the start point     'b':back to previous list
+    print (''''a':jump to the start point     'p':previous list
 'e':jump to the end             'CR':return for next list
-'s':toggle sort mode(sort: by right side, Lsort: by left side)
-'.k':toggle KWIC mode
+'l':toggle sort mode(sort: by right side, Lsort: by left side)
+'k':toggle KWIC mode          'j':jump 1/10 leap
+'b':jump back 1/10 leap
 'C':copy all lists to clipboard  'h':invoke this page
 ']number':copy numbered list to clipboard
 any other key to quit''')
@@ -962,6 +964,8 @@ def dispController():
 
     start = 0
     isSkip = False
+    span = len(conBufSort)
+    leap = int(span/10)
     if isKWIC:
         delta = limit * poisson
     else:
@@ -977,29 +981,33 @@ def dispController():
         prompt = input(enhance(message))
         if prompt == '':
             start += delta
-            start = min(start, len(conBufSort))
-        elif prompt == 'b':
+            start = min(start, span)
+        elif prompt == 'p':
             start -= delta
             start = max(0, start)
         elif prompt == 'a':
             start = 0
         elif prompt == 'e':
-            start = len(conBufSort) - limit * poisson
+            start = span - limit * poisson
         elif prompt.isdigit():
-            start = min(len(conBufSort)+1, int(prompt)-1)
+            start = min(span+1, int(prompt)-1)
         elif prompt == 'C':
             if isSort:
                 copyAll2Clipboard(conBufSort, keywordArray[0])
             else:
                 copyAll2Clipboard(conBufLSort, keywordArray[0])
             isSkip = True
-        elif prompt == '.k':
+        elif prompt == 'j':
+            start = min (start + leap, span)
+        elif prompt == 'b':
+            start = max (start - leap, 0)
+        elif prompt == 'k':
             isKWIC  = toggle(isKWIC)
             if isKWIC:
                 delta = limit*poisson
             else:
                 delta = limit
-        elif prompt == 's':
+        elif prompt == 'l':
             isSort = toggle(isSort)
         elif prompt == 'h':
             promptHelp()
