@@ -880,6 +880,8 @@ def enhanceKwd(line, kwd):
     line = line.replace(KWD, enhance(KWD)) 
     KWD = kwd.upper()
     line = line.replace(KWD, enhance(KWD)) 
+    KWD = kwd.lower()
+    line = line.replace(KWD, enhance(KWD)) 
     return line
 
 def dispConBuf(start, end, keyw):
@@ -920,14 +922,17 @@ def toggle(flag):
 def copy2Clipboard(command):
     global conBuf
     global conBufSort
+    global conBufLSort
 
     if command[0] == ']':
         strNum = str(command[ 1:])
         if strNum.isdigit():
             nLine = int(strNum) -1
-            if nLine in range(len(conBuf)):
+            if nLine in range(len(conBufSort)):
                 if isSort and isMulti :
                     line = conBufSort[nLine]
+                elif isMulti and not isSort:
+                    line = conBufLSort[nLine]
                 else:
                     line = conBuf[nLine]
                 pyperclip.copy(line)
