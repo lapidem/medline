@@ -26,6 +26,7 @@ color enhancement, optional limit
     keyword.upper()対応
 5.0 kwic； keyword一語前でソート 5.1 neighboring word frequency sort (NWFS)
 5.2 multiple sort console buffer control enhancement, jumping
+5.3 treating multiple keyword sorting and showing frequent neighbor word
 To Do 
 
 *********** neural network of words の構造
@@ -51,7 +52,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev5.2'
+revision = 'rev5.3'
 
 import glob
 import os
@@ -77,6 +78,8 @@ aWordArray = []
 conBuf = [] #console buffer
 conBufSort = [] 
 conBufLSort = [] #sorted console buffer by left side of keyword
+preKeyDic ={}
+postKeyDic = {}
 ## ttdic structure
 ## word \t POS \t infinitive \ count
 ## trained by tteraw.awk in pubmed folder from medline.txt data as stdin
@@ -806,20 +809,31 @@ def register2Dic(word, dic):
 
 def makePPDic( line, keyword, preDic, postDic):
     strArray = line.split()
+    keyOffset = len(keyword.split()) -1    #debug
 #    print(strArray)    #debug
     index = findStr(keyword, strArray)
-    if index in range(0, len(strArray)-1):
+#    if index in range(0, len(strArray)-1):
+    if index+keyOffset in range(0, len(strArray)-1):
 #        print(keyword, strArray[index+1])    #debug
-        register2Dic(strArray[index+1], postDic)
+#        register2Dic(strArray[index+1], postDic)
+        register2Dic(strArray[index+1+keyOffset], postDic)
     if index in range(1,len(strArray)):
         register2Dic(strArray[index-1], preDic)
+
 
 def getKeyCount(line, keyword, dic, offset):
 #    print(dic)    #debug
     strArray = line.split()
+    keyOffset = len(keyword.split()) -1    #debug
+    if offset <0:
+        keyOffset = 0
+#    print(keyOffset, end='')    #debug
     index = findStr(keyword, strArray)
-    if index+offset in range(len(strArray)):
-        adKeyword = strArray[index+offset]
+#    if index+offset in range(len(strArray)):
+    if index+offset+keyOffset in range(len(strArray)):
+#        adKeyword = strArray[index+offset]
+        adKeyword = strArray[index+offset+keyOffset]
+#        print(adKeyword)    #debug
         if adKeyword in dic.keys():
             return int(dic[adKeyword])
         else:
@@ -828,15 +842,17 @@ def getKeyCount(line, keyword, dic, offset):
         return 0
 
 def findStr( string, strArray):
+    firstStr = string.split()[0]
+    string = firstStr
     for i in range(len(strArray)):
         if string in strArray[i]:
             return i
             if string.capitalize() in strArray[i]:
                 return i
                 if string.lower() in strArray[i]:
+                    return i
+                    if string.upper() in strArray[i]:
                         return i
-                        if string.upper() in strArray[i]:
-                            return i
     return -1
 
 def kwic(line, keyword):
@@ -960,6 +976,36 @@ def promptHelp():
 ']number':copy numbered list to clipboard
 any other key to quit''')
 
+def dispFreq():
+    result = ''
+    resultAdd = ''
+    token = ''
+    count = 1
+    if isSort:
+        dic = postKeyDic
+    else:
+        dic = preKeyDic
+    for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
+        token =  "{}({}) ".format( k, v)
+#        print(token)    #debug
+        if len(resultAdd) + len(token)  > nLLen*2:
+            result += resultAdd +'\n'
+            resultAdd = token
+            count += 1
+        else:
+            resultAdd += token
+        if count % (limit*2) == 0:
+            print(result+resultAdd)
+            result=''
+            resultAdd=''
+            count = 1
+            prompt = input()
+            if not prompt == '':
+                return
+    print(result)
+    return
+
+
 def dispController():
     global isKWIC
     global isSort
@@ -996,6 +1042,8 @@ def dispController():
             start = span - limit * poisson
         elif prompt.isdigit():
             start = min(span+1, int(prompt)-1)
+        elif prompt == 'f':
+            dispFreq()
         elif prompt == 'C':
             if isSort:
                 copyAll2Clipboard(conBufSort, keywordArray[0])
@@ -1006,7 +1054,7 @@ def dispController():
             start = min (start + leap, span)
         elif prompt == 'b':
             start = max (start - leap, 0)
-        elif prompt == 'k':
+        elif prompt in  ('k', '.k' ):
             isKWIC  = toggle(isKWIC)
             if isKWIC:
                 delta = limit*poisson
@@ -1057,10 +1105,13 @@ load()
 loadEnv()
 preMessage()
 while True:
-    if isKWIC:
-        print("keyword(. for menu)KWIC>>>", end='')
-    else:
-        print("keyword(. for menu)>>>", end='')
+#    promptMsg="Input keyword('.' for menu)"+flag('KWIC')+">>>"
+    promptMsg="Input keyword('.' for menu)>>>"
+    print(promptMsg, end='')
+#    if isKWIC:
+#        print("keyword(. for menu)KWIC>>>", end='')
+#    else:
+#        print("keyword(. for menu)>>>", end='')
     regex = False
     pKeywords = keywords
     keywords = ""
@@ -1265,6 +1316,9 @@ while True:
         sortedMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], postKeyDic, 1))
         tempMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
         sortedLMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], preKeyDic, -1))
+#        print(postKeyDic)    #debug
+#        sortedPostKeyDic = sorted(postKeyDic.items(), key=lambda x: -x[1]) #debug
+#        print(sortedPostKeyDic)    #debug
         for i in range(len(multiMatch[multiplicity])):
 #            line = multiMatch[multiplicity][i]
             lineSort = sortedMM[i]
