@@ -27,6 +27,7 @@ color enhancement, optional limit
 5.0 kwic； keyword一語前でソート 5.1 neighboring word frequency sort (NWFS)
 5.2 multiple sort console buffer control enhancement, jumping
 5.3 treating multiple keyword sorting and showing frequent neighbor word
+5.4 jumping capability to neighbor word
 To Do 
 
 *********** neural network of words の構造
@@ -52,7 +53,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev5.3'
+revision = 'rev5.4'
 
 import glob
 import os
@@ -683,6 +684,7 @@ def dispVocaDistr(vocaDistr):
         print (getWordRank(k), end='')
         print("({0:.4})".format(v), end='')
         if v < poisson:
+#        if v < 0.5:
             break
 
 def getWordRank(keyword):
@@ -801,6 +803,66 @@ keywordの次の語の多い順にsortする。
         postKeyDic{word: count}, preKeyDic{}を作成する　（これはkeywordが同じである限り同じ） local変数
     そのline中のkeywordの次(前）の語の頻度を返すkey関数を与える getKeyCount(line, keyword, postKeyDic | preKeyDic)
 '''
+def dispFreq(keyword):
+    result, resultAdd, eResult, eResultAdd, token, eToken = '', '', '', '','',''
+    nDisp = limit * 2
+    nBegin = 0
+    nEnd = nBegin + nDisp
+    length, count, rank = 0,1, 0
+    adkey = []
+    if isSort:
+        sList, dic, offset = sortedMM, postKeyDic, 1
+    else:
+        sList, dic, offset = sortedLMM, preKeyDic, -1
+    for k, v in sorted(dic.items(), key=lambda x: -x [1]):
+        adkey.append(k)
+    while True:
+        for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
+            rank += 1 
+            if rank <nBegin:
+                continue
+            token =  "({}){}[{}] ".format(rank, k, v)
+            eToken =  "({}){}[{}] ".format(rank, enhance(k), v)
+    #        print(token)    #debug
+            if len(resultAdd) + len(token)  > nLLen*2:
+                result += resultAdd +'\n'
+                resultAdd = token
+                eResult += eResultAdd +'\n'
+                eResultAdd = eToken
+                count += 1
+            else:
+                resultAdd += token
+                eResultAdd += eToken
+            if rank > nEnd:
+                print(eResult+eResultAdd)
+                break
+        message="<-p n->'C': copy to clipboard, No for jump >>>"
+        prompt = input(message) 
+        if prompt == 'C':
+            pyperclip.copy(result+resultAdd)
+            print("copied to clipboard...")
+        if prompt == 'p':
+            nBegin -= nDisp
+            nEnd -= nDisp
+            if nBegin <0:
+                nBegin = 0
+                nEnd = nDisp
+        elif prompt in ('n', ''):
+            nBegin += nDisp
+            nEnd += nDisp
+        elif prompt.isdigit():
+            num = int(prompt)
+            if num in range(len(dic)):
+                print(keyword, adkey[num -1],offset)
+                jump = findAdKeyword(keyword, adkey[num-1], sList, offset)
+                return jump
+        else:
+            return -1
+        result, resultAdd, eResult, eResultAdd, token, eToken = '', '', '', '','',''
+        count, rank = 1, 0
+#        print(eResult)
+    return -1
+
 def register2Dic(word, dic):
     if word in dic:
         dic[word] += 1
@@ -813,7 +875,8 @@ def makePPDic( line, keyword, preDic, postDic):
 #    print(strArray)    #debug
     index = findStr(keyword, strArray)
 #    if index in range(0, len(strArray)-1):
-    if index+keyOffset in range(0, len(strArray)-1):
+#    if index+keyOffset in range(0, len(strArray)-1):
+    if index+1+keyOffset in range( len(strArray)):     #debug
 #        print(keyword, strArray[index+1])    #debug
 #        register2Dic(strArray[index+1], postDic)
         register2Dic(strArray[index+1+keyOffset], postDic)
@@ -821,7 +884,41 @@ def makePPDic( line, keyword, preDic, postDic):
         register2Dic(strArray[index-1], preDic)
 
 
+'''
+sList (sortedMM, sortedLMM)で
+keywordからoffsetの位置にある語がadkeyである最初のレコード番号を探す
+
+'''
+def findAdKeyword(keyword, adkey, sList, offset):
+    for i in range(len(sList)):
+        if adkey == getAdKeyword(sList[i], keyword, offset):
+            return i
+    return 0
+'''
+sorted dic(sortedMM, sortedLMM)で、
+keyword からoffsetの位置にあるwordを返す
+'''
+def getAdKeyword(line, keyword, offset):
+    strArray = line.split()
+    keyOffset = len(keyword.split()) -1    #debug
+    if offset <0:
+        keyOffset = 0
+    index = findStr(keyword, strArray)
+    if index+offset+keyOffset in range(len(strArray)):
+        adKeyword = strArray[index+offset+keyOffset]
+        return adKeyword
+    else:
+        return ''
+
+
 def getKeyCount(line, keyword, dic, offset):
+    adKeyword = getAdKeyword(line, keyword,offset)
+    if adKeyword in dic.keys():
+        return int(dic[adKeyword])
+    else:
+        return 0
+'''
+old routine
 #    print(dic)    #debug
     strArray = line.split()
     keyOffset = len(keyword.split()) -1    #debug
@@ -840,6 +937,7 @@ def getKeyCount(line, keyword, dic, offset):
             return 0
     else:
         return 0
+'''
 
 def findStr( string, strArray):
     firstStr = string.split()[0]
@@ -976,34 +1074,7 @@ def promptHelp():
 ']number':copy numbered list to clipboard
 any other key to quit''')
 
-def dispFreq():
-    result = ''
-    resultAdd = ''
-    token = ''
-    count = 1
-    if isSort:
-        dic = postKeyDic
-    else:
-        dic = preKeyDic
-    for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
-        token =  "{}({}) ".format( k, v)
-#        print(token)    #debug
-        if len(resultAdd) + len(token)  > nLLen*2:
-            result += resultAdd +'\n'
-            resultAdd = token
-            count += 1
-        else:
-            resultAdd += token
-        if count % (limit*2) == 0:
-            print(result+resultAdd)
-            result=''
-            resultAdd=''
-            count = 1
-            prompt = input()
-            if not prompt == '':
-                return
-    print(result)
-    return
+
 
 
 def dispController():
@@ -1043,7 +1114,9 @@ def dispController():
         elif prompt.isdigit():
             start = min(span+1, int(prompt)-1)
         elif prompt == 'f':
-            dispFreq()
+            num = dispFreq(keywordArray[0])
+            if num >= 0:
+                start = num
         elif prompt == 'C':
             if isSort:
                 copyAll2Clipboard(conBufSort, keywordArray[0])
@@ -1247,8 +1320,9 @@ while True:
             expectRate = baseVoca[k]/ searched 
             vocaDistr[k] = foundRate / expectRate
         vocN += 1
-        if vocN > limit*poisson:
-            break
+        if vocN > limit*poisson:    #debug
+#        if vocN > limit:
+            break    #debug
     #### layer0 後処理
     layerFound[0] = found
 
