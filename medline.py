@@ -28,8 +28,13 @@ color enhancement, optional limit
 5.2 multiple sort console buffer control enhancement, jumping
 5.3 treating multiple keyword sorting and showing frequent neighbor word
 5.4 jumping capability to neighbor word
+5.5 pubmedサイズが大きいため、save()から削除し、pubmed{}はmedline.txt作成後は、使用しない、
+ショートカットにusageを追加、infoでデータサイズを表示etc
 To Do 
+"""
+revision = 'rev5.5'
 
+"""
 *********** neural network of words の構造
 {'wrd1' : {'aw1' : n1, 'aw2' : n2, ...}, 'wrd2': {'aw1' : n2, ..}, ...}
 あるいは
@@ -53,7 +58,7 @@ To Do
 cd pubmed/
 cat *.txt | ./tteraw.awk > medlineTTE.lst
 """
-revision = 'rev5.4'
+
 
 import glob
 import os
@@ -69,8 +74,10 @@ import pyperclip
 
 pubmedDir ='/pubmed/'     #home dirからの相対path, ~/pubmed/を想定
 ####  global
-files = []
 pubmed = {}
+files = []
+pubmedSize = 0
+dbInfo ={}
 docn = []
 overlapped = 0
 baseVoca = {} #全体のvocabulary
@@ -113,9 +120,11 @@ def openMedline():
     #            array abstracts for sentence database
     #            array pubmed for abstract database
 
-    global files
+    global files    
     global overlapped
     global pubmed
+    global pubmedSize
+    global dbInfo
     global docn
     global ttdic
 
@@ -142,6 +151,7 @@ def openMedline():
         lines = f.readlines()
         f.close()
         print( ':',  len(lines), "lines")
+        dbInfo[fName] = len(lines)
         medline += lines
     
     #load Trained Tree Tag dic
@@ -190,6 +200,7 @@ def openMedline():
                     tit += lineStr
             else:
                 lineStr = medline[line]
+    pubmedSize = len(pubmed)
 
     #docn: doc(abstractsのコピー)をsentenceに分割
     # \n\sを ' 'に置き換える
@@ -367,7 +378,7 @@ def saveEnv():
     shelfFile['verbRawRank'] = verbRawRank
     shelfFile['adverbRank'] = adverbRank
     shelfFile['adjectiveRank'] = adjectiveRank
-    shelfFile.close
+    shelfFile.close()
 
 def loadEnv():
     global history
@@ -397,15 +408,17 @@ def loadEnv():
         adverbRank = shelfFile['adverbRank']
     if 'adjectiveRank' in shelfFile.keys():
         adjectiveRank = shelfFile['adjectiveRank']
-    shelfFile.close
+    shelfFile.close()
 
 def chop(str):
     return re.sub(r'\s+$', '', str)
 
 def save():
     global files
+    global dbInfo
     global docn
-    global pubmed
+#    global pubmed
+    global pubmedSize
     global baseVoca
 #    global ttdic
 
@@ -414,19 +427,28 @@ def save():
     print('saving medline db ...')
     for i in range(len(docn)):
         file.write(docn[i]+'\n')
-    file.close
-    print('saving trained medline dictionary ...')
+    file.close()
+#    print('saving pubmed db ...')
+#    file = open('.medlinepub.txt','w')
+#    for k in pubmed.keys():
+#        file.write("{}:{}\n".format(k, pubmed[k]))
+#    file.close()
     shelfFile = shelve.open('.medline')
+    print('saving pubmed info ...') 
     shelfFile['files'] = files
-    shelfFile['pubmed'] = pubmed
+    shelfFile['pubmed'] = pubmedSize
+    shelfFile['dbInfo'] = dbInfo
+    print('saving trained medline dictionary ...')
     shelfFile['baseVoca'] = baseVoca
-    shelfFile.close
+    shelfFile.close()
 
 def load():
     #write + \nで書き出したものをreadlineで読み取り、改行を落とす。
     global docn
     global files
+    global dbInfo
     global pubmed
+    global pubmedSize
     global baseVoca
 #    global ttdic
 
@@ -440,21 +462,24 @@ def load():
                 line= chop(line)
                 docn.append(line)
                 line = file.readline()
-        file.close
+        file.close()
     except:
         print('.medline.txt not fournd')
     #load Trained Tree Tag dictionary
     # loadEnvで品詞別辞書を読み込んでいるため、ttdicの再読込の必要はない
 #    loadTtdic()
     #load environment data
-    print('loading trained dictionary of medline ...')
+    print('loading pubmed info ...') 
     shelfFile = shelve.open('.medline')
-    if 'baseVoca' in shelfFile.keys():
-        baseVoca = shelfFile['baseVoca']
     if 'files' in shelfFile.keys():
         files = shelfFile['files']
     if 'pubmed' in shelfFile.keys():
-        pubmed = shelfFile['pubmed']
+        pubmedSize = shelfFile['pubmed']
+    if 'dbInfo' in shelfFile.keys():
+        dbInfo = shelfFile['dbInfo']
+    print('loading trained dictionary of medline ...')
+    if 'baseVoca' in shelfFile.keys():
+        baseVoca = shelfFile['baseVoca']
     shelfFile.close()
 
 def colorSelection():
@@ -493,9 +518,13 @@ def info():
     if len(files) > 0:
         print("loaded database: ")
         for fNames in files:
-            print(fNames, ', ')
+            print(fNames, end='')
+            if fNames in dbInfo.keys():
+                print(":\t{:,d} lines".format( dbInfo[fNames]))
+            else:
+                print()
     ttdicMessage()
-    usage()
+#    usage()
 
 def usage():
     print( """ ********** Eliza HELP *************
@@ -516,6 +545,7 @@ e.g.) 1:2 invokes MULTIPLE SEARCH with 1st and 2nd keywords.
 '.r'+keyword for REGULAR EXPRESSION for experts
     example: '.rThis.+study' matches 'This is the first study', etc.
 '.v', '.a', '.j' for invoking lists of verb, adverb, adjective, respectively.
+'.u' for Usage, '.i' for info
 '.o' for open and intake the Medline.txt databases in "pumed folder".
 '.l' for load data, manually.
 '.s' save data, manually.
@@ -542,6 +572,8 @@ def command(cmd):
         elif cmd in ['o', 'O']:
             openMedline()
             preMessage()
+        elif cmd in ['u', 'U']:
+            usage()
         elif cmd in ['l', 'L']:
             load()
             preMessage()
@@ -554,7 +586,7 @@ def command(cmd):
             return 'quit'
 
 def menu():
-    menuList = {'i': '\tI)nfo', 'c': 'C)olor', 'h': '\tH)istory', 'v': '\tV)erb list', 'a': '\tA)dverb list','j': '\tJ)adJective list','n': '\tN)umber shown', 'o': '\tO)pen Medline text data', 'l': '\tL)oad saved db', 's': '\tS)ave db', 'r': '\tR)eturn', 'q': '\tQ)uit' }
+    menuList = {'i': '\tI)nfo', 'c': 'C)olor', 'h': '\tH)istory', 'v': '\tV)erb list', 'a': '\tA)dverb list','j': '\tJ)adJective list','n': '\tN)umber shown', 'o': '\tO)pen Medline text data','u':'\tU)sage', 'l': '\tL)oad saved db', 's': '\tS)ave db', 'r': '\tR)eturn', 'q': '\tQ)uit' }
     while True:
         for i in menuList:
             if i == 'c':
@@ -568,14 +600,14 @@ def menu():
                 print(menuList[i])
         cmd = input('menu>>>')
         res = command(cmd)
-        if cmd in ['h', 'H', 'v', 'V', 'a', 'A']:
+        if cmd in ['h', 'H', 'v', 'V', 'a', 'A', 'j', 'J']:
              return res
         if res in [ 'quit']:
             return res
         return '.'
 
 def preMessage():
-    print("I have learned {:,d} medline data,".format( len(pubmed)),  "{:,d} sentences,".format(len(docn)), "{:,d} words.".format(len(baseVoca)), "{:,d} overlapped.".format(overlapped))
+    print("{:,d} medline data,".format( pubmedSize),  "{:,d} sentences,".format(len(docn)), "{:,d} words.".format(len(baseVoca)), "{:,d} overlapped.".format(overlapped))
     print("Eliza console verison medline.py", revision, "(c) sirasawa")
 
 '''
@@ -637,7 +669,7 @@ def dispDicRank(dic):
                 print()
             print( item  , end='')
         print()
-        cmd = input("(<-:p n:->)select number:")
+        cmd = input("(<-p n->)select number:")
         if cmd == 'p': 
             nBegin -= nDisp
             nEnd -= nDisp
@@ -810,6 +842,7 @@ def dispFreq(keyword):
     nEnd = nBegin + nDisp
     length, count, rank = 0,1, 0
     adkey = []
+    isSkip = False
     if isSort:
         sList, dic, offset = sortedMM, postKeyDic, 1
     else:
@@ -817,31 +850,41 @@ def dispFreq(keyword):
     for k, v in sorted(dic.items(), key=lambda x: -x [1]):
         adkey.append(k)
     while True:
-        for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
-            rank += 1 
-            if rank <nBegin:
-                continue
-            token =  "({}){}[{}] ".format(rank, k, v)
-            eToken =  "({}){}[{}] ".format(rank, enhance(k), v)
-    #        print(token)    #debug
-            if len(resultAdd) + len(token)  > nLLen*2:
-                result += resultAdd +'\n'
-                resultAdd = token
-                eResult += eResultAdd +'\n'
-                eResultAdd = eToken
-                count += 1
-            else:
-                resultAdd += token
-                eResultAdd += eToken
-            if rank > nEnd:
-                print(eResult+eResultAdd)
-                break
-        message="<-p n->'C': copy to clipboard, No for jump >>>"
+        if not isSkip:
+            for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
+                rank += 1 
+                if rank <=nBegin:
+                    continue
+                token =  "({}){}[{}] ".format(rank, k, v)
+                eToken =  "({}){}[{}] ".format(rank, enhance(k), v)
+                if len(resultAdd) + len(token)  > nLLen*2:
+                    result += resultAdd +'\n'
+                    resultAdd = token
+                    eResult += eResultAdd +'\n'
+                    eResultAdd = eToken
+                    count += 1
+                else:
+                    resultAdd += token
+                    eResultAdd += eToken
+                if rank >= nEnd :
+                    print(eResult+eResultAdd)
+                    break
+        else:
+            isSkip = toggle(isSkip)
+        message="<-p n-> '[A]C': copy [All] to clipboard, No for jump >>>"
         prompt = input(message) 
         if prompt == 'C':
             pyperclip.copy(result+resultAdd)
             print("copied to clipboard...")
-        if prompt == 'p':
+            isSkip = True
+        elif prompt == 'AC':
+            adkeylist = ''
+            for i in range(len(adkey)):
+                adkeylist += "({}){}[{}]\n".format(i, adkey[i], dic[adkey[i]])
+            pyperclip.copy (adkeylist)
+            print("copied all the list to clipboard...")
+            isSkip = True
+        elif prompt == 'p':
             nBegin -= nDisp
             nEnd -= nDisp
             if nBegin <0:
@@ -874,6 +917,9 @@ def makePPDic( line, keyword, preDic, postDic):
     keyOffset = len(keyword.split()) -1    #debug
 #    print(strArray)    #debug
     index = findStr(keyword, strArray)
+    if index < 0:    #debug
+        print('makePPDic error', end='')
+        return
 #    if index in range(0, len(strArray)-1):
 #    if index+keyOffset in range(0, len(strArray)-1):
     if index+1+keyOffset in range( len(strArray)):     #debug
@@ -900,44 +946,30 @@ keyword からoffsetの位置にあるwordを返す
 '''
 def getAdKeyword(line, keyword, offset):
     strArray = line.split()
-    keyOffset = len(keyword.split()) -1    #debug
-    if offset <0:
+    keyOffset = len(keyword.split()) -1    #複数語からなるkeywordの文字数-1をoffsetに加える
+    if offset <0:                                #left では、keyOffsetは考慮しなくて良い
         keyOffset = 0
-    index = findStr(keyword, strArray)
+#    index = findStr(keyword, strArray)    #debug
+    index = findStr(keyword.split()[0], strArray)    #debug rev5.5
+    if index <0:
+        print('getAdKeyword error', index, keyword, end='')     #debug
+        return ''    #debug rev5.5
     if index+offset+keyOffset in range(len(strArray)):
         adKeyword = strArray[index+offset+keyOffset]
         return adKeyword
     else:
         return ''
 
-
+'''
+lineのkeywordからoffset離れた単語をカウントして、
+dic (preKeyDic, postKeyDic）に収納する。
+'''
 def getKeyCount(line, keyword, dic, offset):
     adKeyword = getAdKeyword(line, keyword,offset)
     if adKeyword in dic.keys():
         return int(dic[adKeyword])
     else:
         return 0
-'''
-old routine
-#    print(dic)    #debug
-    strArray = line.split()
-    keyOffset = len(keyword.split()) -1    #debug
-    if offset <0:
-        keyOffset = 0
-#    print(keyOffset, end='')    #debug
-    index = findStr(keyword, strArray)
-#    if index+offset in range(len(strArray)):
-    if index+offset+keyOffset in range(len(strArray)):
-#        adKeyword = strArray[index+offset]
-        adKeyword = strArray[index+offset+keyOffset]
-#        print(adKeyword)    #debug
-        if adKeyword in dic.keys():
-            return int(dic[adKeyword])
-        else:
-            return 0
-    else:
-        return 0
-'''
 
 def findStr( string, strArray):
     firstStr = string.split()[0]
@@ -945,12 +977,12 @@ def findStr( string, strArray):
     for i in range(len(strArray)):
         if string in strArray[i]:
             return i
-            if string.capitalize() in strArray[i]:
-                return i
-                if string.lower() in strArray[i]:
-                    return i
-                    if string.upper() in strArray[i]:
-                        return i
+        elif string.capitalize() in strArray[i]:
+            return i
+        elif string.lower() in strArray[i]:
+            return i
+        elif string.upper() in strArray[i]:
+            return i
     return -1
 
 def kwic(line, keyword):
@@ -1069,7 +1101,7 @@ def promptHelp():
 'e':jump to the end             'CR':return for next list
 'l':toggle sort mode(sort: by right side, Lsort: by left side)
 'k':toggle KWIC mode          'j':jump 1/10 leap
-'b':jump back 1/10 leap
+'b':jump back 1/10 leap       'f':shows frequent neighbors
 'C':copy all lists to clipboard  'h':invoke this page
 ']number':copy numbered list to clipboard
 any other key to quit''')
@@ -1207,7 +1239,7 @@ while True:
             useHistory = True
         else:
             continue
-    elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.o', '.l', '.s', '.q' ]:
+    elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.u', '.o', '.l', '.s', '.q' ]:
         res = command(keywords[1])
         if res == 'quit':
             break
