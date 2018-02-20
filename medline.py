@@ -30,9 +30,11 @@ color enhancement, optional limit
 5.4 jumping capability to neighbor word
 5.5 pubmedサイズが大きいため、save()から削除し、pubmed{}はmedline.txt作成後は、使用しない、
 ショートカットにusageを追加、infoでデータサイズを表示etc
+5.6 multiple-word keywordでは、findStr()が不完全（例えば as observedでは、 was observedと一致してしまう。）
 To Do 
+初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
 """
-revision = 'rev5.5'
+revision = 'rev5.6'
 
 """
 *********** neural network of words の構造
@@ -55,13 +57,16 @@ revision = 'rev5.5'
     lineをsAKeyTでソート
 
 *********** medlineTTE.lst 作成方法
+tree-taggerをpathの通った場所にインストール後
 cd pubmed/
-cat *.txt | ./tteraw.awk > medlineTTE.lst
+cat *.txt | ./tree-tagger | ./ttecount.py > medlineTTE.lst
+
 """
 
 
 import glob
 import os
+import sys
 import re
 import shelve
 import pyperclip
@@ -74,6 +79,8 @@ import pyperclip
 
 pubmedDir ='/pubmed/'     #home dirからの相対path, ~/pubmed/を想定
 ####  global
+debug = True
+#debug = False
 pubmed = {}
 files = []
 pubmedSize = 0
@@ -225,6 +232,12 @@ def openMedline():
     print()
     save()
     #### end of openMedline()
+
+'''
+debugger to stderr
+'''
+def perr(message):
+    sys.stderr.write(message)
     
 def ttdicMessage():
     global ttdic
@@ -849,6 +862,7 @@ def dispFreq(keyword):
         sList, dic, offset = sortedLMM, preKeyDic, -1
     for k, v in sorted(dic.items(), key=lambda x: -x [1]):
         adkey.append(k)
+#    perr("dispFreq: {} entries\n".format(len(dic)))    #debug
     while True:
         if not isSkip:
             for k, v in  sorted(dic.items(), key=lambda x: -x[1]) :
@@ -869,6 +883,10 @@ def dispFreq(keyword):
                 if rank >= nEnd :
                     print(eResult+eResultAdd)
                     break
+            else:
+                res = eResult+eResultAdd
+                if res:
+                    print(res)
         else:
             isSkip = toggle(isSkip)
         message="<-p n-> '[A]C': copy [All] to clipboard, No for jump >>>"
@@ -912,20 +930,18 @@ def register2Dic(word, dic):
     else:
         dic[word] = 1
 
+
 def makePPDic( line, keyword, preDic, postDic):
     strArray = line.split()
     keyOffset = len(keyword.split()) -1    #debug
 #    print(strArray)    #debug
     index = findStr(keyword, strArray)
     if index < 0:    #debug
-        print('makePPDic error', end='')
+#        print('makePPDic error', end='')
         return
-#    if index in range(0, len(strArray)-1):
-#    if index+keyOffset in range(0, len(strArray)-1):
     if index+1+keyOffset in range( len(strArray)):     #debug
-#        print(keyword, strArray[index+1])    #debug
-#        register2Dic(strArray[index+1], postDic)
         register2Dic(strArray[index+1+keyOffset], postDic)
+#        perr("makePPDic key<{}>{}(index={})\n".format(keyword ,strArray[index+1+keyOffset], strArray[index])) #debug
     if index in range(1,len(strArray)):
         register2Dic(strArray[index-1], preDic)
 
@@ -950,9 +966,10 @@ def getAdKeyword(line, keyword, offset):
     if offset <0:                                #left では、keyOffsetは考慮しなくて良い
         keyOffset = 0
 #    index = findStr(keyword, strArray)    #debug
-    index = findStr(keyword.split()[0], strArray)    #debug rev5.5
+#    index = findStr(keyword.split()[0], strArray)    #debug rev5.5
+    index = findStr(keyword, strArray)    #debug rev5.5
     if index <0:
-        print('getAdKeyword error', index, keyword, end='')     #debug
+#        perr("getAdKeyword error {}\n index={}, keyword={}\n".format(line, index, keyword))     #debug
         return ''    #debug rev5.5
     if index+offset+keyOffset in range(len(strArray)):
         adKeyword = strArray[index+offset+keyOffset]
@@ -971,18 +988,37 @@ def getKeyCount(line, keyword, dic, offset):
     else:
         return 0
 
+def nextMatch(aKey, strArray, index):
+    span = len(aKey)
+#    print(aKey, span, end='') ## debug
+    if span <= 1:
+        return True
+    for pos in range(1, span):
+#        perr("nextMatch?{} == {}\n".format(aKey[pos], strArray[index+pos]))    #debug
+#        if aKey[pos] != strArray[index+pos]:    #debug
+        if aKey[pos] not in strArray[index+pos]:
+            return False
+    return True
+
 def findStr( string, strArray):
-    firstStr = string.split()[0]
+    aKey = string.split()
+    firstStr = aKey[0]
     string = firstStr
     for i in range(len(strArray)):
-        if string in strArray[i]:
-            return i
-        elif string.capitalize() in strArray[i]:
-            return i
-        elif string.lower() in strArray[i]:
-            return i
-        elif string.upper() in strArray[i]:
-            return i
+#        if string in strArray[i] and nextMatch(aKey, strArray, i):    <=== bug!!!
+        stringVariation =(string, string.capitalize(), string.lower(), string.upper())
+        for strV in stringVariation:
+            m = re.match(strV, strArray[i])
+            if m and nextMatch(aKey, strArray, i):
+                return i
+#        if string in strArray[i] and nextMatch(aKey, strArray, i):
+#            return i
+#        elif string.capitalize() in strArray[i] and nextMatch(aKey, strArray, i):
+#            return i
+#        elif string.lower() in strArray[i] and nextMatch(aKey, strArray, i):
+#            return i
+#        elif string.upper() in strArray[i] and nextMatch(aKey, strArray, i):
+#            return i
     return -1
 
 def kwic(line, keyword):
@@ -1031,11 +1067,9 @@ def enhanceKwd(line, kwd):
     return line
 
 def dispConBuf(start, end, keyw):
-#    print(start,end,keyw, len(conBuf))
     if start <0:
         start = 0
     if end > len(conBufSort):
-#        end = len(conBuf) -1
         end = len(conBufSort) 
     for i in range(start, end):
         if isSort:
@@ -1129,7 +1163,6 @@ def dispController():
             dispConBuf(start, start+ delta, keywordArray[0])
         else:
             isSkip = toggle(isSkip)
-#        message = "<<-a<-b:CR->e->>, 's':sort tgl, any other:quit "+flag('sort')+flag('KWIC')+">>>"
         message = "<<-a<-b:CR->e->>, typ h for help "+flag('sort')+flag('KWIC')+">>>"
         message = "/{:,d}{}".format(found, getWordRank(keywordArray[0])) + message
         prompt = input(enhance(message))
@@ -1253,8 +1286,11 @@ while True:
             continue
     #### history shortcut
     elif keywords[0] == '.' and keywords[1:].isdigit():
-        keywords = history[int(keywords[1:])]
-        useHistory = True
+        if len(history) >0:
+            keywords = history[int(keywords[1:])]
+            useHistory = True
+        else:
+            continue
     if useHistory:
         print("keyword(. for menu, shortcuts)>>>", keywords, end='')
         additionalKeywords = input()
@@ -1414,25 +1450,14 @@ while True:
 
         for i in range(len(multiMatch[multiplicity])):
             makePPDic(multiMatch[multiplicity][i], keywordArray[0], preKeyDic, postKeyDic)
-#        print(preKeyDic)    #debug
         #### console Buffer routine new
         tempMM = sorted(multiMatch[multiplicity], key=lambda str: rightStr(str, keywordArray[0]))
-#        for i in range(len(tempMM)):    #debug
-#            print(getKeyCount(tempMM[i], keywordArray[0], postKeyDic, 1), end='')    #debug
         sortedMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], postKeyDic, 1))
         tempMM = sorted(sortedMM, key=lambda str: leftStrRev(str, keywordArray[0]))
         sortedLMM = sorted(tempMM, key=lambda str: -getKeyCount(str, keywordArray[0], preKeyDic, -1))
-#        print(postKeyDic)    #debug
-#        sortedPostKeyDic = sorted(postKeyDic.items(), key=lambda x: -x[1]) #debug
-#        print(sortedPostKeyDic)    #debug
         for i in range(len(multiMatch[multiplicity])):
-#            line = multiMatch[multiplicity][i]
             lineSort = sortedMM[i]
-#            strArray = lineSort.split()   #debug
-#            target = strArray[findStr(keywordArray[0], lineSort)]
-#            lineSort = lineSort + target
             lineLSort = sortedLMM[i]
-#            conBuf.append(line)
             conBufSort.append(lineSort)
             conBufLSort.append(lineLSort)
         dispController()
@@ -1441,7 +1466,7 @@ while True:
     print('='*10, 'words associated with ', end='')
     for i in range(len(keywordArray)):
         print(enhance(keywordArray[i]), end="")
-        print(' '+'='*5, end="")
+        print(': ', end="")
     print()
     dispVocaDistr(vocaDistr)
     print()
