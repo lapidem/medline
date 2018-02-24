@@ -31,10 +31,13 @@ color enhancement, optional limit
 5.5 pubmedサイズが大きいため、save()から削除し、pubmed{}はmedline.txt作成後は、使用しない、
 ショートカットにusageを追加、infoでデータサイズを表示etc
 5.6 multiple-word keywordでは、findStr()が不完全（例えば as observedでは、 was observedと一致してしまう。）
+clipboard copy (All copy）がkwicで動作しないbug fix
+6.0 関数等整備、or search装備のため、文をtaggingする, wordnet, gene95
 To Do 
 初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
+
 """
-revision = 'rev5.6'
+revision = 'rev6.0'
 
 """
 *********** neural network of words の構造
@@ -70,6 +73,9 @@ import sys
 import re
 import shelve
 import pyperclip
+import subprocess
+import shutil
+
 #import readchar
 #import treetaggerwrapper as ttw
 ###W TreeTagger
@@ -107,6 +113,7 @@ adjective = {}
 adverbRank = {}
 verbRawRank = {}
 adjectiveRank = {}
+gene = {}    #gene95英和辞書
 
 #### constants
 tagPattern = r'([A-Z]+)\s*\-s*'
@@ -163,6 +170,7 @@ def openMedline():
     
     #load Trained Tree Tag dic
     loadTtdic()
+#    loadGene()
 
     print("processing medline format", end='')
 
@@ -239,6 +247,20 @@ debugger to stderr
 def perr(message):
     sys.stderr.write(message)
     
+def loadGene():
+    global gene
+
+    homeDir = os.environ['HOME']
+    geneDic = homeDir +pubmedDir+'gene95/gene-utf8.txt'
+    print(geneDic)
+    print("loading gene95 English/Japanese  dictionary...", end='')
+    f = open(geneDic)
+    geneRaw = f.readlines()
+    f.close()
+    for i in range(0, len(geneRaw), 2):
+        gene[chop(geneRaw[i])] = chop(geneRaw[i+1])
+    print("{:,d} records".format(len(gene)))
+
 def ttdicMessage():
     global ttdic
     global verb
@@ -391,6 +413,7 @@ def saveEnv():
     shelfFile['verbRawRank'] = verbRawRank
     shelfFile['adverbRank'] = adverbRank
     shelfFile['adjectiveRank'] = adjectiveRank
+#    shelfFile['gene'] = gene
     shelfFile.close()
 
 def loadEnv():
@@ -402,6 +425,7 @@ def loadEnv():
     global verbRawRank
     global adverbRank
     global adjectiveRank
+    global gene
 
     print("loading trained TTag dictionary ...")
     shelfFile = shelve.open('.medline')
@@ -421,6 +445,8 @@ def loadEnv():
         adverbRank = shelfFile['adverbRank']
     if 'adjectiveRank' in shelfFile.keys():
         adjectiveRank = shelfFile['adjectiveRank']
+#    if 'gene' in shelfFile.keys():
+#        gene = shelfFile['gene']
     shelfFile.close()
 
 def chop(str):
@@ -668,6 +694,7 @@ def dispDicRank(dic):
     while True:
         count = 0
         command={}
+        sortedDic = sorted(dic.items(), key= lambda x:-x[1])
         for k,v in sorted(dic.items(), key=lambda x:-x[1]):
             count += 1 
             if count < nBegin:
@@ -694,9 +721,43 @@ def dispDicRank(dic):
             nEnd += nDisp
         elif cmd == '':
             return ''
+        elif cmd[0] == 'w':    #wordnet
+            numStr = cmd[1:]
+            if not numStr:
+                wordnet()
+            if numStr.isdigit():
+                index = int(numStr)
+                if index in range(len(sortedDic)):
+                    wordnet(sortedDic[index-1][0])
         else:
             if cmd in command.keys():
                 return command[cmd]
+
+def wordnet(word=''):
+    while True:
+        if not shutil.which('wn'):
+            print('Please install WordNet...')
+            return
+        if not word:
+            word=input("Wordnet:")
+            if not word:
+                return
+        jap =getGene(word)
+        if jap:
+            print('=>', jap)
+#        print('='*10, 'WordNet results of', enhance(word))
+        cmd =['wn', word, '-over']
+        subprocess.run(cmd)
+        word = ''
+
+def getGene(word):
+    global gene
+#    print(list(gene)[:3])
+    if word in gene.keys():
+        return gene[word]
+    return ''
+
+
 
 def getVerb():
     global verbRaw
@@ -956,6 +1017,7 @@ def findAdKeyword(keyword, adkey, sList, offset):
         if adkey == getAdKeyword(sList[i], keyword, offset):
             return i
     return 0
+
 '''
 sorted dic(sortedMM, sortedLMM)で、
 keyword からoffsetの位置にあるwordを返す
@@ -990,16 +1052,19 @@ def getKeyCount(line, keyword, dic, offset):
 
 def nextMatch(aKey, strArray, index):
     span = len(aKey)
-#    print(aKey, span, end='') ## debug
     if span <= 1:
         return True
     for pos in range(1, span):
-#        perr("nextMatch?{} == {}\n".format(aKey[pos], strArray[index+pos]))    #debug
-#        if aKey[pos] != strArray[index+pos]:    #debug
         if aKey[pos] not in strArray[index+pos]:
             return False
     return True
 
+'''
+multipleなキーワードに対応、
+検索対象文は配列として渡す
+一つ一つのキーワードが対象文中の語に包含されれば先頭のキーワードの位置を返す。
+完全な一致ではないことに注意
+'''
 def findStr( string, strArray):
     aKey = string.split()
     firstStr = aKey[0]
@@ -1011,14 +1076,6 @@ def findStr( string, strArray):
             m = re.match(strV, strArray[i])
             if m and nextMatch(aKey, strArray, i):
                 return i
-#        if string in strArray[i] and nextMatch(aKey, strArray, i):
-#            return i
-#        elif string.capitalize() in strArray[i] and nextMatch(aKey, strArray, i):
-#            return i
-#        elif string.lower() in strArray[i] and nextMatch(aKey, strArray, i):
-#            return i
-#        elif string.upper() in strArray[i] and nextMatch(aKey, strArray, i):
-#            return i
     return -1
 
 def kwic(line, keyword):
@@ -1122,14 +1179,22 @@ def copy2Clipboard(command):
 
 def copyAll2Clipboard(buf, kwd):
     doc = ''
+    KWIC = ''
     nTitle = len(buf)
     for i in range(nTitle):
-        line = kwic( buf[i], kwd )
+        if isKWIC:
+            line = kwic( buf[i], kwd )
 #        line = enhanceKwd(line, kwd)
+        else:
+            line = buf[i]
         doc += line+'\n'
     pyperclip.copy(doc)
-    print("{:,d} kwic expressions have been copied to clipboard ...".format(nTitle))
+    KWIC = flag('KWIC')
+    print("{:,d} {} expressions have been copied to clipboard ...".format(nTitle, KWIC))
 
+'''
+multiple keyword searchのヘルプ
+'''
 def promptHelp():
     print (''''a':jump to the start point     'p':previous list
 'e':jump to the end             'CR':return for next list
@@ -1141,8 +1206,9 @@ def promptHelp():
 any other key to quit''')
 
 
-
-
+'''
+multiple keyword search のUI
+'''
 def dispController():
     global isKWIC
     global isSort
@@ -1203,6 +1269,8 @@ def dispController():
         elif prompt == 'h':
             promptHelp()
             isSkip = True
+        elif prompt =='w':
+            wordnet(keywordArray[0])
         elif copy2Clipboard(prompt):
             isSkip = True
             continue
@@ -1227,31 +1295,27 @@ magenta = '\033[35m\033[01m'
 cyan = '\033[36m\033[01m'
 colorS =  {'enhance':underline, 'red': '\033[31m', 'green':  '\033[32m',  'yellow' : '\033[33m', 'blue' : '\033[34m', 'magenta' : '\033[35m', 'cyan' : '\033[36m'}
 color = 'enhance'
-enhanceS = colorS[color]
-enhanceE = '\033[0m'
-limit = 10
-poisson = 2
-tooLong = 500
-isKWIC = True
-isSort = True
-isLSort = False
-nLLen = 36
+enhanceS = colorS[color]   #enhanc表示トリガー
+enhanceE = '\033[0m'    #enhance表示end
+limit = 10   #表示の標準限界値
+poisson = 2    #余裕のレベルのdefault値
+tooLong = 500    #これ以上の語よりなる文
+isKWIC = True    #KWIC表示トグル
+isSort = True    #KWIC右側でソート
+isLSort = False   #KWIC左側でソート
+nLLen = 36    #コンソール幅の半分-α
 res='' #bug?
 
 ######################## main routine
-load()
+load()    #まず、データの読み込みをする
 loadEnv()
+loadGene()
 preMessage()
 while True:
-#    promptMsg="Input keyword('.' for menu)"+flag('KWIC')+">>>"
     promptMsg="Input keyword('.' for menu)>>>"
     print(promptMsg, end='')
-#    if isKWIC:
-#        print("keyword(. for menu)KWIC>>>", end='')
-#    else:
-#        print("keyword(. for menu)>>>", end='')
     regex = False
-    pKeywords = keywords
+    pKeywords = keywords    #必要ない？
     keywords = ""
     vocaDistr = {}
     useHistory = False
@@ -1272,13 +1336,17 @@ while True:
             useHistory = True
         else:
             continue
-    elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.u', '.o', '.l', '.s', '.q' ]:
+    #### shortcut commands ショートカットコマンド
+    elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.u', '.o', '.l', '.s', '.w',  '.q' ]:
         res = command(keywords[1])
         if res == 'quit':
             break
         if keywords in ['.h', '.v', '.a', '.j'] and not res=='' :
             keywords = res
             useHistory = True
+        elif keywords in ['.w']:
+            wordnet()
+            continue
         elif keywords in ['.k']:
             isKWIC = toggle(isKWIC)
             continue
@@ -1291,6 +1359,7 @@ while True:
             useHistory = True
         else:
             continue
+    #### invoking history
     if useHistory:
         print("keyword(. for menu, shortcuts)>>>", keywords, end='')
         additionalKeywords = input()
@@ -1304,15 +1373,18 @@ while True:
     isMulti = False
     rank=[]
     keywordArray = keywords.split(':')
+#    print(len(keywordArray))    #debug
     if len(keywordArray) > 1:
         isMulti = True  #debug
     #### 空文字があるなら配列より削除だが、multiSearchとして扱う
     for i in range(len(keywordArray)):
-        if keywordArray[i] == '':
-            keywordArray.pop(i)
-#   for i in range(len(keywordArray)):
-#        rank.append( getWordRank(keywordArray[i]))
-
+#        print(i)    #debug
+#        if keywordArray[i] == '':
+        if i <len(keywordArray):
+            if not keywordArray[i]:
+                keywordArray.pop(i)
+    if len(keywordArray[0] ) < 2:    #1語では検索しない
+        continue
     ### associated wordsを番号で呼び出し、associated keywordで置き換え
     if keywordArray[0].isdigit():
         nAWord = len(aWordArray)
@@ -1369,7 +1441,7 @@ while True:
                 continue
             multiMatch.append([])
             found = searchMatch(keywordArray[i],multiMatch[i], multiMatch[i+1], layerVoca[0])
-            print("{}({}) ".format(keywordArray[i], found), end="")
+            print("{}({}:{:.2}%) ".format(keywordArray[i], found, found/searched*100), end="")
         print()
     if found == 0:
         print("no match")
