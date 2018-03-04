@@ -33,11 +33,12 @@ color enhancement, optional limit
 5.6 multiple-word keywordでは、findStr()が不完全（例えば as observedでは、 was observedと一致してしまう。）
 clipboard copy (All copy）がkwicで動作しないbug fix
 6.0 関数等整備、or search装備のため、文をtaggingする, wordnet, gene95
+6.1 readkbd module置き換え
 To Do 
 初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
 
 """
-revision = 'rev6.0'
+revision = 'rev6.1'
 
 """
 *********** neural network of words の構造
@@ -76,6 +77,7 @@ import pyperclip
 import subprocess
 import shutil
 
+import readkbd    #readkbd.py module for kbdInput()
 #import readchar
 #import treetaggerwrapper as ttw
 ###W TreeTagger
@@ -584,6 +586,7 @@ e.g.) 1:2 invokes MULTIPLE SEARCH with 1st and 2nd keywords.
 '.r'+keyword for REGULAR EXPRESSION for experts
     example: '.rThis.+study' matches 'This is the first study', etc.
 '.v', '.a', '.j' for invoking lists of verb, adverb, adjective, respectively.
+'.w' invoking Wordnet
 '.u' for Usage, '.i' for info
 '.o' for open and intake the Medline.txt databases in "pumed folder".
 '.l' for load data, manually.
@@ -637,7 +640,8 @@ def menu():
                 print(menuList[i], ': ', limit)
             else:
                 print(menuList[i])
-        cmd = input('menu>>>')
+        cmd = input('menu>>>')    #### ^Z, ^Cを呼び出せるために
+#        cmd = readkbd.kbdInput('menu>>>')
         res = command(cmd)
         if cmd in ['h', 'H', 'v', 'V', 'a', 'A', 'j', 'J']:
              return res
@@ -676,7 +680,8 @@ def getHistory():
     global history
     hLimit = 10
     dispHistory(hLimit)
-    res = input('select number: ')
+#    res = input('select number: ')
+    res = readkbd.kbdInput('select number: ')
     if res.isdigit():
         if int(res) in range(len(history)):
             return history[int(res)]
@@ -684,6 +689,26 @@ def getHistory():
              return ''
     else:
         return ''
+
+'''
+invoke wordnet if cmd begin with 'w'
+if it is follwoed by the index of wordArray
+ivnvokes wordnet(wordArray[index])
+'''
+def cmdWordnet(cmd, wordArray):
+    if len(cmd) < 1:
+        return False
+    if cmd[0] == 'w':    #wordnet
+        numStr = cmd[1:]
+        if not numStr:
+            wordnet()
+            return
+        if numStr.isdigit():
+            index = int(numStr)
+            if index in range(len(wordArray)):
+                wordnet(wordArray[index-1])
+    return
+    
 
 def dispDicRank(dic):
     nDisp = limit * 10
@@ -709,7 +734,8 @@ def dispDicRank(dic):
                 print()
             print( item  , end='')
         print()
-        cmd = input("(<-p n->)select number:")
+#        cmd = input("(<-p n->)select number:")
+        cmd = readkbd.kbdInput("(<-p n->)select number:")
         if cmd == 'p': 
             nBegin -= nDisp
             nEnd -= nDisp
@@ -734,20 +760,30 @@ def dispDicRank(dic):
                 return command[cmd]
 
 def wordnet(word=''):
+    global history
     while True:
         if not shutil.which('wn'):
             print('Please install WordNet...')
             return
         if not word:
-            word=input("Wordnet:")
+#            word=input("Wordnet:")
+            word=readkbd.kbdInput("Wordnet:")
             if not word:
                 return
+
+#        print('='*10, 'WordNet results of', enhance(word))
+        wd = word.split()
+        cmd = ['wn']
+        for i in range(len(wd)):
+            cmd.append( wd[i] )
+        cmd.append('-a')
+        cmd.append('-over')
+        subprocess.run(cmd)
         jap =getGene(word)
         if jap:
             print('=>', jap)
-#        print('='*10, 'WordNet results of', enhance(word))
-        cmd =['wn', word, '-over']
-        subprocess.run(cmd)
+        if word != history[0]:
+            history.insert(0, word)
         word = ''
 
 def getGene(word):
@@ -807,6 +843,7 @@ def getWordRank(keyword):
         rank = ''
     return rank
 
+'''
 ######## multiple search (layer search) 実装 <=未実装。　sarchMatchで実装なので使わない？
     #### layerKeyword[layer][index] : 各layerのkeyword, layer=0は、docnであり、keywordは''とする。
     #### layerCount[layer][index]: 各layerのindexed keywordによるmatch数配列
@@ -817,6 +854,7 @@ def getWordRank(keyword):
 #layer = 1 からサーチはスタート
     #              layer  0       1              2                    3
     #layerKeyword=['', ['keyword'], ['key1', 'key2',...], ['key1-1
+'''
 def findMatch(layer, index):
     global layerMatch
     global layerCount
@@ -950,8 +988,9 @@ def dispFreq(keyword):
                     print(res)
         else:
             isSkip = toggle(isSkip)
-        message="<-p n-> '[A]C': copy [All] to clipboard, No for jump >>>"
-        prompt = input(message) 
+        message="<-p n->'[A]C':copy [All] to clipboard, 'w[No]':wordnet, No for jump>>>"
+#        prompt = input(message) 
+        prompt = readkbd.kbdInput(message) 
         if prompt == 'C':
             pyperclip.copy(result+resultAdd)
             print("copied to clipboard...")
@@ -972,6 +1011,8 @@ def dispFreq(keyword):
         elif prompt in ('n', ''):
             nBegin += nDisp
             nEnd += nDisp
+        elif cmdWordnet(prompt, adkey):
+            continue
         elif prompt.isdigit():
             num = int(prompt)
             if num in range(len(dic)):
@@ -1202,6 +1243,7 @@ def promptHelp():
 'k':toggle KWIC mode          'j':jump 1/10 leap
 'b':jump back 1/10 leap       'f':shows frequent neighbors
 'C':copy all lists to clipboard  'h':invoke this page
+'w':invoking wordnet
 ']number':copy numbered list to clipboard
 any other key to quit''')
 
@@ -1231,7 +1273,8 @@ def dispController():
             isSkip = toggle(isSkip)
         message = "<<-a<-b:CR->e->>, typ h for help "+flag('sort')+flag('KWIC')+">>>"
         message = "/{:,d}{}".format(found, getWordRank(keywordArray[0])) + message
-        prompt = input(enhance(message))
+#        prompt = input(enhance(message))
+        prompt = readkbd.kbdInput(enhance(message))
         if prompt == '':
             start += delta
             start = min(start, span)
@@ -1320,7 +1363,8 @@ while True:
     vocaDistr = {}
     useHistory = False
 
-    keywords = input()    
+#    keywords = input()    
+    keywords = readkbd.kbdInput()    
     if keywords == '':
         continue
     elif copy2Clipboard(keywords):
@@ -1344,8 +1388,12 @@ while True:
         if keywords in ['.h', '.v', '.a', '.j'] and not res=='' :
             keywords = res
             useHistory = True
+        #### Wordnet
         elif keywords in ['.w']:
-            wordnet()
+            if len(history)>0:
+                wordnet(history[0])
+            else:
+                wordnet()
             continue
         elif keywords in ['.k']:
             isKWIC = toggle(isKWIC)
@@ -1362,7 +1410,8 @@ while True:
     #### invoking history
     if useHistory:
         print("keyword(. for menu, shortcuts)>>>", keywords, end='')
-        additionalKeywords = input()
+#        additionalKeywords = input()
+        additionalKeywords = readkbd.kbdInput()
         keywords += additionalKeywords
     #### regular expression search
     if keywords[:2] in ['.r'] and not res=='':
@@ -1383,8 +1432,7 @@ while True:
         if i <len(keywordArray):
             if not keywordArray[i]:
                 keywordArray.pop(i)
-    if len(keywordArray[0] ) < 2:    #1語では検索しない
-        continue
+
     ### associated wordsを番号で呼び出し、associated keywordで置き換え
     if keywordArray[0].isdigit():
         nAWord = len(aWordArray)
@@ -1400,6 +1448,8 @@ while True:
             keywords += aWordArray[number-1]
             if isMulti:
                 keywords += ":"
+    elif len(keywordArray[0] ) < 2:    #1語では検索しない
+        continue
     #### rank 表示
     for i in range(len(keywordArray)):
         rank.append( getWordRank(keywordArray[i]))
