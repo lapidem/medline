@@ -33,12 +33,12 @@ color enhancement, optional limit
 5.6 multiple-word keywordでは、findStr()が不完全（例えば as observedでは、 was observedと一致してしまう。）
 clipboard copy (All copy）がkwicで動作しないbug fix
 6.0 関数等整備、or search装備のため、文をtaggingする, wordnet, gene95
-6.1 readkbd module置き換え
+6.1 readkbd module置き換え 6.2history機能強化（completion)
 To Do 
 初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
 
 """
-revision = 'rev6.1'
+revision = 'rev6.2'
 
 """
 *********** neural network of words の構造
@@ -404,8 +404,8 @@ def saveEnv():
     global adjectiveRank
 
     print('saving trained TTag dictionary ...')
-    if len(history) > 100:
-        del history[100:]
+    if len(history) > 500:
+        del history[500:]
     shelfFile = shelve.open('.medline')
     shelfFile['history'] = history
     shelfFile['verb'] = verb
@@ -433,6 +433,10 @@ def loadEnv():
     shelfFile = shelve.open('.medline')
     if 'history' in shelfFile.keys():
         history = shelfFile['history'] 
+        for i in range(len(history)):
+            readkbd.history.insert(0, list(history[i]))
+        readkbd.index = len(history)
+        readkbd.session = readkbd.index
     if 'verb' in shelfFile.keys():
         verb = shelfFile['verb']
     if 'verbRaw' in shelfFile.keys():
@@ -1380,6 +1384,9 @@ while True:
             useHistory = True
         else:
             continue
+    elif keywords == '..':    ###super History!
+        dispHistory(limit*10)
+        continue
     #### shortcut commands ショートカットコマンド
     elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.u', '.o', '.l', '.s', '.w',  '.q' ]:
         res = command(keywords[1])
