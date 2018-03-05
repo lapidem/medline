@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 #-*- coding: utf-8 -*-
 '''
-readkbd rev2 (c)2018 sirasawa
+readkbd rev3 (c)2018 sirasawa
 module readkbd
 Emacs like keybind input method.
 readkbd.kbdInput()
@@ -13,6 +13,7 @@ install by 'pip install readchar'
 import readchar
 import subprocess
 import sys
+import re
 
 CSI ='\033['
 
@@ -105,8 +106,38 @@ def nsession():    #next session
         refresh()
         eol()
 
+def wheel(num):
+    figure = ['-', '\\', '|', '/']
+    sign = num % 4
+    pr(figure[sign])
+    cub(1)
+    flush()
+
+def ringHistory(word):
+    global history, index
+    index -= 1
+    if index < 0:
+        index = len(history)
+    if index not in range(len(history)):
+        return ''
+    cycle = 0
+    while True:
+        if index in range(len(history)):
+            string =''.join(history[index])
+#            m = re.match(word, string)
+            if word in string:
+#            if m:
+                return string
+        index -= 1
+        if index < 1:
+            index = len(history)
+            cycle += 1
+        if cycle > 1:
+            return ''
+    return ''
+
 def parser():
-    global session, index, pos, lnbuf, history, signal
+    global session, index, pos, lnbuf, history, compFlg, compSeed
 #    kb = readchar.readkey()
     kb = readchar.readchar()
 
@@ -126,6 +157,18 @@ def parser():
         fs()
     elif code == 8:    #^H
         bsdel()
+    elif code == 9:    #^I, Tab
+        word = ''.join(lnbuf)
+        if not compFlg:
+            compSeed = word
+            compFlg = True
+#        completion = ringHistory(word)
+        completion = ringHistory(compSeed)
+        if completion:
+            bol()
+            lnbuf = list(completion)
+            refresh()
+            eol()
     elif code == 11:    #^K
         ed()
         tmp = lnbuf[:pos]
@@ -145,9 +188,7 @@ def parser():
             refresh()
             history[session]=lnbuf
     elif code == 26:    #^Z for shell
-#        signal = True
         pr(kb)
-#        return False
     elif code == 27:    #Esc
         kbd = readchar.readchar()
         if kbd == '[':
@@ -177,6 +218,8 @@ def parser():
         pos += 1
         flush()
         history[session] = lnbuf
+    if code != 9:
+        compFlg = False
     return True
 
 def initParser():
@@ -204,7 +247,8 @@ index = 0
 pos=0
 lnbuf = []
 history = [lnbuf]
-#signal = False
+compFlg = False
+compSeed =''
 
 '''
 demonstration of readkbd.kbdInput()
