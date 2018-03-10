@@ -17,7 +17,7 @@ medline mining system
 - pip install readchar
 ## WordNet ##
 - https://wordnet.princeton.edu/download/current-version
-- Download and install WordNet of appropriate version.
+- Download and install appropriate version of WordNet.
 - Windows and Unix-like systems (Irix, Solaris, and Linux binaries) are available.
 ## GENED95 ##
 - http://www.namazu.org/~tsuchiya/sdic/data/gene.html
