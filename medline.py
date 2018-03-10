@@ -123,6 +123,7 @@ contPattern = r'\s+([^\s].*$)'
 titleTagPattern = r'^TI\s*\-s*'
 oTagPattern = r'^OT\s+\-\s*([\w ]+)\n*'
 regExChar = ['+', '*', '(', ')', '{', '}', '[', ']', '?', '<', '>']
+historySize = 1000
 
 def openMedline():
     #get medline txt files
@@ -404,8 +405,8 @@ def saveEnv():
     global adjectiveRank
 
     print('saving trained TTag dictionary ...')
-    if len(history) > 500:
-        del history[500:]
+    if len(history) > historySize:
+        del history[historySize:]
     shelfFile = shelve.open('.medline')
     shelfFile['history'] = history
     shelfFile['verb'] = verb
@@ -417,6 +418,14 @@ def saveEnv():
     shelfFile['adjectiveRank'] = adjectiveRank
 #    shelfFile['gene'] = gene
     shelfFile.close()
+
+def loadKbdHistory(array):
+    print("loading history... {:,d}->".format(readkbd.index),end='')
+    for i in range(len(array)):
+        readkbd.history.insert(0, list(array[i]))
+    readkbd.index += len(array)
+    readkbd.session += len(array)
+    print("{:,d}".format(readkbd.index))
 
 def loadEnv():
     global history
@@ -431,14 +440,10 @@ def loadEnv():
 
     print("loading trained TTag dictionary ...")
     shelfFile = shelve.open('.medline')
-    if 'history' in shelfFile.keys():
-        history = shelfFile['history'] 
-        for i in range(len(history)):
-            readkbd.history.insert(0, list(history[i]))
-        readkbd.index = len(history)
-        readkbd.session = readkbd.index
+ 
     if 'verb' in shelfFile.keys():
         verb = shelfFile['verb']
+        loadKbdHistory(list(verb.keys()))     #load to history
     if 'verbRaw' in shelfFile.keys():
         verbRaw = shelfFile['verbRaw']
     if 'adverb' in shelfFile.keys():
@@ -449,10 +454,18 @@ def loadEnv():
         verbRawRank = shelfFile['verbRawRank']
     if 'adverbRank' in shelfFile.keys():
         adverbRank = shelfFile['adverbRank']
+        loadKbdHistory(list(adverbRank.keys()))    #load to history
     if 'adjectiveRank' in shelfFile.keys():
         adjectiveRank = shelfFile['adjectiveRank']
 #    if 'gene' in shelfFile.keys():
 #        gene = shelfFile['gene']
+    if 'history' in shelfFile.keys():
+        history = shelfFile['history'] 
+        loadKbdHistory(history)    #load to history
+#        for i in range(len(history)):
+#            readkbd.history.insert(0, list(history[i]))
+#        readkbd.index = len(history)
+#        readkbd.session = readkbd.index
     shelfFile.close()
 
 def chop(str):
