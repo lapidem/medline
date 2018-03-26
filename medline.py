@@ -63,7 +63,8 @@ revision = 'rev6.2'
 *********** medlineTTE.lst 作成方法
 tree-taggerをpathの通った場所にインストール後
 cd pubmed/
-cat *.txt | ./tree-tagger | ./ttecount.py > medlineTTE.lst
+./makeMedlineTTE
+###cat *.txt | ./tree-tagger | ./ttecount.py > medlineTTE.lst
 
 """
 
