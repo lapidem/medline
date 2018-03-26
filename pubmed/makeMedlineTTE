@@ -1,0 +1,17 @@
+#! /bin/bash
+DATE=`date "+%y%m%d%H%S"`
+targetFile='medlineTTE.lst'
+backupFile=${targetFile}.$DATE
+#sourceFile=`ls $1`
+sourceFile=`ls *.txt`
+if $1 -eq ''; then
+	echo 'usage: makeMedlineTTE *.txt'
+	exit
+fi
+if [ -e medlineTTE.lst ]; then
+	echo 'backing up ' $targetFile '...'
+	cp medlineTTE.lst medlineTTE.lst.$DATE
+	echo $targetFile 'was backuped as' $backupFile 
+fi
+echo 'processing ' $sourceFile '...'
+cat  $sourceFile |tte |./ttecount.py > $targetFile
