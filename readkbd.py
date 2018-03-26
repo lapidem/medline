@@ -9,7 +9,11 @@ is equivalent ot input()
 
 requires readchar
 install by 'pip install readchar'
+--- history
+3.1: ignore empty line for history
 '''
+revision = '3.1'
+
 import readchar
 import subprocess
 import sys
@@ -124,9 +128,9 @@ def ringHistory(word):
     while True:
         if index in range(len(history)):
             string =''.join(history[index])
-#            m = re.match(word, string)
-            if word in string:
-#            if m:
+            m = re.match(word, string)
+#            if word in string:
+            if m:
                 return string
         index -= 1
         if index < 1:
@@ -203,11 +207,14 @@ def parser():
                 nsession()
     elif code == 13:   #\r
         print()
-        history[session] = lnbuf
+        if lnbuf and len(lnbuf) > 1:
+            history[session] = lnbuf
+        elif session >0:    #rev3.1 omit empty lnbuf
+            session -=1
         return False
     elif code == 127:    #DEL
         bsdel()
-    elif code > 31:   #文字入力 insertモード
+    elif code > 31:   #character input: insert mode
         pr(kb)
         if pos >= len(lnbuf):
             lnbuf.append(kb)
@@ -238,9 +245,6 @@ def kbdInput(message=''):
     while True:
         if not parser():
             return ''.join(lnbuf)
-#        if signal:
-#            signal = False
-#            return chr(26)
 
 session = 0
 index = 0
