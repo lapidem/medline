@@ -22,3 +22,4 @@ medline mining system
 ## GENED95 ##
 - http://www.namazu.org/~tsuchiya/sdic/data/gene.html
 - nkf gene.txt >gene-utf8.txt
+- $export LANG=ja_JP.UTF-8
