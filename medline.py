@@ -34,11 +34,12 @@ color enhancement, optional limit
 clipboard copy (All copy）がkwicで動作しないbug fix
 6.0 関数等整備、or search装備のため、文をtaggingする, wordnet, gene95
 6.1 readkbd module置き換え 6.2history機能強化（completion)
+6.3 windows compatibility: home directory (os.path.expanduser('~')), Gene: encoding="utf-8"
 To Do 
 初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
 
 """
-revision = 'rev6.2'
+revision = 'rev6.3'
 
 """
 *********** neural network of words の構造
@@ -71,6 +72,7 @@ cd pubmed/
 
 import glob
 import os
+import os.path
 import sys
 import re
 import shelve
@@ -156,7 +158,8 @@ def openMedline():
     id = ''
     pubmed = {}
 
-    homeDir = os.environ['HOME']
+#    homeDir = os.environ['HOME']
+    homeDir = os.path.expanduser('~')
     medlineTxt = homeDir+pubmedDir+'*.txt'
     print(medlineTxt)
     files =glob.glob(medlineTxt)
@@ -254,11 +257,13 @@ def perr(message):
 def loadGene():
     global gene
 
-    homeDir = os.environ['HOME']
+#    homeDir = os.environ['HOME']
+    homeDir = os.path.expanduser('~')
     geneDic = homeDir +pubmedDir+'gene95/gene-utf8.txt'
     print(geneDic)
     print("loading gene95 English/Japanese  dictionary...", end='')
-    f = open(geneDic)
+#    f = open(geneDic)
+    f = open(geneDic, encoding="utf-8")     #for the compatibility with windows
     geneRaw = f.readlines()
     f.close()
     for i in range(0, len(geneRaw), 2):
@@ -289,7 +294,8 @@ def loadTtdic():
 
     # open TreeTag data
 
-    homeDir = os.environ['HOME']
+#    homeDir = os.environ['HOME']
+    homeDir = os.path.expanduser('~')
     TTdic = homeDir +pubmedDir+'medlineTTE.lst'
     print(TTdic)
     print("loading Trained Tree Tag  dictionary...", end='')
