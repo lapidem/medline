@@ -1,0 +1,95 @@
+INSTRUCTIONS for installing medline.py (ELIZA system)
+
+*** ELIZA console version, medline.py, rev6.3, 2018 (c) sirasawa ***
+ELIZA system can work only on python3 not on python2.
+
+[Windows]
+1. Install anaconda3 by an installer, Anaconda3-5.1.0-Windows-x86_64.exe
+	Anaconda3 folder should be installed into your directory. 
+	e.g.) C:\users\sirasawa\Anaconda3\
+1.1	install python libraries below (on the Anaconda prompt)
+	pip install pyperclip
+	pip install readchar
+	replace \Anaconda3\Lib\site-packages\readchar\readchar_windows with readchar_windows in the distribution.
+	(currently distributed readchar_windows.py has a minor bug that causes crash.)
+
+2. Install ConEmu by an installer, ConEmuSetup.161206.exe
+3. Install WordNet by an installer, WordNet-2.1.exe
+4. Copy 'pubmed' folder into your home folder. e.g.)C:\users\sirasawa\
+5. Start ConEmu, invoke 'settings...' in the menu, and import 'medline.xml' included in the distribution.
+6. Start ELIZA (medline.py) pushing '+' the icon on the ConEmu.
+7. On the first run, make the database by typing '.o' or O)pen Medline text data in the menu.
+8. Menu of ELIZA can be invoked by '.', and the usage will be shown by typing '.u'.
+
+[LINUX]
+[OS-X]
+Procedures are almost the same as in 'Windows'. 
+Brief instructions for experts (probably you are:).
+1. Install anaconda
+	also install python libraries, pyperclip, readchar by pip.
+	Unfortunately, conda doesn't support both of the libraries.
+2. Install wordnet, which is usually included in the distribution that you are using. 
+	Make sure to set up as you can call 'wn'.
+	In the case of OS-X, you may need homebrew.
+		brew cask install quartz
+		brew install wordnet
+3. Copy pubmed folder into your home directory.
+	Make sure to set up the path to ~/pubmed/, 
+	or as you can call 'medline.py' and 'readkbd.py' in the pubmed directory.
+4. Call ELIZA by 'medline.py'.
+
+
+[USAGE]
+ELIZA supports bash-like cursor movements familiar to Linux and OS-X users, which is not explained here.
+ ********** Eliza HELP *************
+Eliza does DEEP NEURAL NET SEARCH of words in Medline db.
+Eliza already knows the words and the frequencies of their use.
+MENU: . for invoking menu
+Separating keywords with ':' makes Eliza report MULTIPLE searches
+instead of DEEP NEURAL NET SEARCH.
+DO NOT include  [+, *, (, ), {, }, [, ], ?, <, >] in keywords.
+TIPs: one keyword followd by ':' makes the search SIMPLE SEARCH.
+SHORTCUTS:
+the NUMBER of 'words associated' invokes the keywords.
+e.g.) 1:2 invokes MULTIPLE SEARCH with 1st and 2nd keywords.
+']'+ NUMBER allows Eliza copy the line to the clipboard.
+'.h' for history, '.number' for invoking (number)history directly
+    e.g.) '.0' for previous search
+'.k' for KWIC toggle, defaut ON
+'.r'+keyword for REGULAR EXPRESSION for experts
+    example: '.rThis.+study' matches 'This is the first study', etc.
+'.v', '.a', '.j' for invoking lists of verb, adverb, adjective, respectively.
+'.w' invoking Wordnet
+'.u' for Usage, '.i' for info
+'.o' for open and intake the Medline.txt databases in "pumed folder".
+'.l' for load data, manually.
+'.s' save data, manually.
+'.q' for quit
+Eliza makes '~/.medline.db' and '~/.medline.txt'
+
+******** multiple search mode usage********
+'a':jump to the start point     'p':previous list
+'e':jump to the end             'CR':return for next list
+'l':toggle sort mode(sort: by right side, Lsort: by left side)
+'k':toggle KWIC mode          'j':jump 1/10 leap
+'b':jump back 1/10 leap       'f':shows frequent neighbors
+'C':copy all lists to clipboard  'h':invoke this page
+'w':invoking wordnet
+']number':copy numbered list to clipboard
+any other key to quit
+
+********** Have a fun! *************
+
+[How to manipulate medline databases]
+You can add and remove database by changing the *.txt in the pubmed folder.
+Using 'PUBMED' on line, you should download searched papers in 'medline' format as follows.
+-----
+The extension should be 'txt'.
+In the PubMed, search papers,
+'Send to' > 'File' > choose format 'MEDLINE'
+push 'Create File' button.
+Downloading starts.
+Rename the downloaded file as '*.txt' and move into your 'pubmed' folder.
+Invoke open in ELIZA by typing '.o', and taking the medline data into your database begins.
+-----
+
