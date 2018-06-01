@@ -18,7 +18,7 @@ medline mining system
 ## WordNet ##
 - https://wordnet.princeton.edu/download/current-version
 - Download and install appropriate version of WordNet.
-- Windows and Unix-like systems (Irix, Solaris, and Linux binaries) are available.
+- Wordnet for Windows and Unix-like systems (Irix, Solaris, and Linux binaries) are available.
 ## GENED95 ##
 - http://www.namazu.org/~tsuchiya/sdic/data/gene.html
 - nkf gene.txt >gene-utf8.txt
