@@ -35,11 +35,15 @@ clipboard copy (All copy）がkwicで動作しないbug fix
 6.0 関数等整備、or search装備のため、文をtaggingする, wordnet, gene95
 6.1 readkbd module置き換え 6.2history機能強化（completion)
 6.3 windows compatibility: home directory (os.path.expanduser('~')), Gene: encoding="utf-8"
+6.4 multiple searchで引き続きsearchを継続, 
+6.5 medlineデータベースを再構築する際に、データベースが大きいとエラーとなる(.medline.dbを削除することにより回避できるため、再構築時に.medline.dbを削除
 To Do 
+multiple search keywordが呼び出せない？
+isSortがglobalではない？
 初期の検索ではmatchするが、findStr()でマッチしない場合がある。（whilo-study等）
 
 """
-revision = 'rev6.3'
+revision = 'rev6.5'
 
 """
 *********** neural network of words の構造
@@ -245,6 +249,7 @@ def openMedline():
                 else:
                     baseVoca[words[wrd]] = 1
     print()
+    emptyShelf() #rev6.5
     save()
     #### end of openMedline()
 
@@ -478,6 +483,9 @@ def loadEnv():
 def chop(str):
     return re.sub(r'\s+$', '', str)
 
+def emptyShelf():
+    os.remove('.medline.db')
+    
 def save():
     global files
     global dbInfo
@@ -1273,7 +1281,7 @@ any other key to quit''')
 
 
 '''
-multiple keyword search のUI
+multiple keyword search UI
 '''
 def dispController():
     global isKWIC
@@ -1342,7 +1350,7 @@ def dispController():
             isSkip = True
             continue
         else:
-            return
+            return prompt
 
 
 ##### keyword matching search
@@ -1372,6 +1380,7 @@ isSort = True    #KWIC右側でソート
 isLSort = False   #KWIC左側でソート
 nLLen = 36    #コンソール幅の半分-α
 res='' #bug?
+isMulti = False     #multiple search was let main search 
 
 ######################## main routine
 load()    #まず、データの読み込みをする
@@ -1379,16 +1388,18 @@ loadEnv()
 loadGene()
 preMessage()
 while True:
-    promptMsg="Input keyword('.' for menu)>>>"
-    print(promptMsg, end='')
-    regex = False
-    pKeywords = keywords    #必要ない？
-    keywords = ""
-    vocaDistr = {}
-    useHistory = False
+    if not isMulti:    #rev 6.4
+        promptMsg="Input keyword('.' for menu)>>>"
+        print(promptMsg, end='')
+        regex = False
+        pKeywords = keywords    #必要ない？
+        keywords = ""
+        vocaDistr = {}
+        useHistory = False
 
-#    keywords = input()    
-    keywords = readkbd.kbdInput()    
+    #    keywords = input()    
+        keywords = readkbd.kbdInput()    
+    isMulti = False    #Is this OK?, then isMultis below nonsense!
     if keywords == '':
         continue
     elif copy2Clipboard(keywords):
@@ -1396,6 +1407,7 @@ while True:
     elif keywords[0] in regExChar:
         continue
     elif keywords == '.':
+        isMulti = False
         ans = menu()
         if ans == 'quit':
             break
@@ -1405,10 +1417,12 @@ while True:
         else:
             continue
     elif keywords == '..':    ###super History!
+        isMulti = False        
         dispHistory(limit*10)
         continue
     #### shortcut commands ショートカットコマンド
     elif keywords in ['.i', '.c', '.h', '.v', '.a', '.j', '.k',  '.n', '.u', '.o', '.l', '.s', '.w',  '.q' ]:
+        isMulti = False
         res = command(keywords[1])
         if res == 'quit':
             break
@@ -1435,23 +1449,27 @@ while True:
         else:
             continue
     #### invoking history
-    if useHistory:
+#    if useHistory:
+    if useHistory and not isMulti:
         print("keyword(. for menu, shortcuts)>>>", keywords, end='')
 #        additionalKeywords = input()
         additionalKeywords = readkbd.kbdInput()
         keywords += additionalKeywords
+#        readkbd.history.append[keywords]    #new!        
     #### regular expression search
     if keywords[:2] in ['.r'] and not res=='':
         regex = True
         keywords = keywords[2:]
 
     #### multiple search入力処理
-    isMulti = False
+#    isMulti = False
     rank=[]
     keywordArray = keywords.split(':')
 #    print(len(keywordArray))    #debug
     if len(keywordArray) > 1:
         isMulti = True  #debug
+    else:
+        isMulti = False
     #### 空文字があるなら配列より削除だが、multiSearchとして扱う
     for i in range(len(keywordArray)):
 #        print(i)    #debug
@@ -1482,6 +1500,7 @@ while True:
         rank.append( getWordRank(keywordArray[i]))
 
     history.insert(0, keywords)
+#    print(keywords)    #debug
 
     layerKeyword =[[keywords]]
 
@@ -1522,6 +1541,7 @@ while True:
         print()
     if found == 0:
         print("no match")
+        isMulti = False
         continue
 
     #### neural network 構築： keywordが接続するnodesの構築
@@ -1609,9 +1629,10 @@ while True:
             lineLSort = sortedLMM[i]
             conBufSort.append(lineSort)
             conBufLSort.append(lineLSort)
-        dispController()
+        keywords = dispController()
 
     #####  Associated words list
+#    print(keywords)
     print('='*10, 'words associated with ', end='')
     for i in range(len(keywordArray)):
         print(enhance(keywordArray[i]), end="")
